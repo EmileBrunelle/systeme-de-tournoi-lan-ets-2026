@@ -1,5 +1,5 @@
 // lib/formats/swiss.ts
-import type { Participant, ParticipantId, SwissStatus } from '../domain/types';
+import type { Participant, ParticipantId, SwissStatus, Standing } from '../domain/types';
 
 export interface SwissMatch {
   id: string;
@@ -162,4 +162,37 @@ export function generateNextRound(state: SwissState): SwissState {
   }
 
   return next;
+}
+
+/** Le tournoi est terminé quand plus aucun participant n'est actif. */
+export function isComplete(state: SwissState): boolean {
+  return state.participants.every((p) => statusOf(state, p.id) !== 'active');
+}
+
+/** Ids des participants qualifiés. */
+export function qualifiers(state: SwissState): ParticipantId[] {
+  return state.participants
+    .filter((p) => statusOf(state, p.id) === 'qualified')
+    .map((p) => p.id);
+}
+
+const STATUS_ORDER: Record<SwissStatus, number> = { qualified: 0, active: 1, eliminated: 2 };
+
+/** Classement : qualifiés d'abord, puis par victoires, Buchholz, seed. */
+export function standings(state: SwissState): Standing[] {
+  const sorted = [...state.participants].sort((a, b) => {
+    const sa = STATUS_ORDER[statusOf(state, a.id)];
+    const sb = STATUS_ORDER[statusOf(state, b.id)];
+    if (sa !== sb) return sa - sb;
+    return strengthCompare(state, a, b);
+  });
+  return sorted.map((p, i) => ({
+    participantId: p.id,
+    name: p.name,
+    rank: i + 1,
+    wins: state.records[p.id].wins,
+    losses: state.records[p.id].losses,
+    tiebreak: buchholz(state, p.id),
+    status: statusOf(state, p.id),
+  }));
 }

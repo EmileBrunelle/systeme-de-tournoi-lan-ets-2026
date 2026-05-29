@@ -1,6 +1,17 @@
 // lib/formats/swiss.test.ts
 import { describe, it, expect } from 'vitest';
-import { createSwiss, statusOf, recordResult, buchholz, generateNextRound } from './swiss';
+import {
+  createSwiss,
+  statusOf,
+  recordResult,
+  buchholz,
+  generateNextRound,
+  currentRound,
+  isComplete,
+  qualifiers,
+  standings,
+} from './swiss';
+import type { SwissState } from './swiss';
 import type { Participant } from '../domain/types';
 
 function mkParticipants(n: number): Participant[] {
@@ -96,5 +107,60 @@ describe('buchholz', () => {
     state.records['p2'].wins = 2;
     state.records['p3'].wins = 1;
     expect(buchholz(state, 'p1')).toBe(3);
+  });
+});
+
+/** Joue une ronde complète : chaque match, le `home` gagne 13-7. */
+function playRoundHomeWins(state: SwissState): SwissState {
+  let s = state;
+  for (const m of s.matches.filter((mm) => mm.round === currentRound(s) && mm.away !== null && mm.score === null)) {
+    s = recordResult(s, m.id, { home: 13, away: 7 });
+  }
+  return s;
+}
+
+describe('anti-revanche', () => {
+  it('évite de réapparier deux équipes déjà rencontrées quand c’est possible', () => {
+    let s = createSwiss(mkParticipants(4), { winsToQualify: 9, lossesToEliminate: 9 });
+    s = generateNextRound(s);          // ronde 1
+    s = playRoundHomeWins(s);
+    s = generateNextRound(s);          // ronde 2
+    // Aucun match de ronde 2 ne doit répéter un appariement de ronde 1
+    const r1 = s.matches.filter((m) => m.round === 1).map((m) => [m.home, m.away].sort().join('-'));
+    const r2 = s.matches.filter((m) => m.round === 2 && m.away !== null).map((m) => [m.home, m.away!].sort().join('-'));
+    for (const pair of r2) expect(r1).not.toContain(pair);
+  });
+});
+
+describe('isComplete + qualifiers + standings', () => {
+  it('déroule un tournoi 4 équipes (2/2) jusqu’à la fin', () => {
+    let s = createSwiss(mkParticipants(4), { winsToQualify: 2, lossesToEliminate: 2 });
+    let guard = 0;
+    while (!isComplete(s) && guard++ < 10) {
+      s = generateNextRound(s);
+      s = playRoundHomeWins(s);
+    }
+    expect(isComplete(s)).toBe(true);
+    // tout le monde est qualifié ou éliminé
+    for (const p of s.participants) {
+      expect(statusOf(s, p.id)).not.toBe('active');
+    }
+    // les qualifiés ont bien 2 victoires
+    for (const id of qualifiers(s)) {
+      expect(s.records[id].wins).toBe(2);
+    }
+  });
+
+  it('standings classe les qualifiés en tête et numérote les rangs', () => {
+    let s = createSwiss(mkParticipants(4), { winsToQualify: 2, lossesToEliminate: 2 });
+    let guard = 0;
+    while (!isComplete(s) && guard++ < 10) { s = generateNextRound(s); s = playRoundHomeWins(s); }
+    const table = standings(s);
+    expect(table).toHaveLength(4);
+    expect(table[0].rank).toBe(1);
+    expect(table[table.length - 1].rank).toBe(4);
+    // premier = qualifié, dernier = éliminé
+    expect(table[0].status).toBe('qualified');
+    expect(table[table.length - 1].status).toBe('eliminated');
   });
 });
