@@ -20,3 +20,6 @@ prisma/dev.db*
 .env
 .env.*
 !.env.example
+
+# État de travail local
+HANDOFF.md
