@@ -1,0 +1,22 @@
+# Dépendances / build
+node_modules/
+.next/
+out/
+
+# Base de données (données sensibles — jamais sur git)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+prisma/dev.db*
+
+# Données de joueurs (sensibles — jamais sur git)
+*.xlsx
+*.xls
+*.csv
+.~lock.*#
+
+# Env / secrets
+.env
+.env.*
+!.env.example
