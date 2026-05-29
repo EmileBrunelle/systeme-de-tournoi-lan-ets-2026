@@ -52,3 +52,39 @@ export function statusOf(state: SwissState, id: ParticipantId): SwissStatus {
   if (rec.losses >= state.lossesToEliminate) return 'eliminated';
   return 'active';
 }
+
+/** Copie profonde d'un état (records + matches). */
+function cloneState(state: SwissState): SwissState {
+  const records: Record<ParticipantId, SwissRecord> = {};
+  for (const [id, r] of Object.entries(state.records)) {
+    records[id] = { ...r, opponents: [...r.opponents] };
+  }
+  return {
+    ...state,
+    records,
+    matches: state.matches.map((m) => ({ ...m, score: m.score ? { ...m.score } : null })),
+  };
+}
+
+export function recordResult(
+  state: SwissState,
+  matchId: string,
+  score: { home: number; away: number },
+): SwissState {
+  const next = cloneState(state);
+  const match = next.matches.find((m) => m.id === matchId);
+  if (!match) throw new Error(`Match introuvable : ${matchId}`);
+  if (match.away === null) throw new Error(`Le match ${matchId} est un bye, déjà résolu`);
+
+  match.score = { ...score };
+  const homeWon = score.home > score.away;
+  const winner = homeWon ? match.home : match.away;
+  const loser = homeWon ? match.away : match.home;
+
+  next.records[winner].wins += 1;
+  next.records[loser].losses += 1;
+  next.records[match.home].opponents.push(match.away);
+  next.records[match.away].opponents.push(match.home);
+
+  return next;
+}

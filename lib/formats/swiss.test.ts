@@ -1,6 +1,6 @@
 // lib/formats/swiss.test.ts
 import { describe, it, expect } from 'vitest';
-import { createSwiss, statusOf } from './swiss';
+import { createSwiss, statusOf, recordResult } from './swiss';
 import type { Participant } from '../domain/types';
 
 function mkParticipants(n: number): Participant[] {
@@ -35,5 +35,33 @@ describe('statusOf', () => {
     expect(statusOf(state, 'p1')).toBe('qualified');
     state.records['p2'].losses = 2;
     expect(statusOf(state, 'p2')).toBe('eliminated');
+  });
+});
+
+describe('recordResult', () => {
+  it('met à jour victoires/défaites et la liste des adversaires', () => {
+    let state = createSwiss(mkParticipants(2));
+    state = {
+      ...state,
+      matches: [{ id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: null }],
+    };
+    state = recordResult(state, 'R1-M1', { home: 13, away: 7 });
+
+    expect(state.records['p1']).toMatchObject({ wins: 1, losses: 0, opponents: ['p2'] });
+    expect(state.records['p2']).toMatchObject({ wins: 0, losses: 1, opponents: ['p1'] });
+    expect(state.matches[0].score).toEqual({ home: 13, away: 7 });
+  });
+
+  it('ne mute pas l’état d’origine (immuabilité)', () => {
+    let state = createSwiss(mkParticipants(2));
+    state = { ...state, matches: [{ id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: null }] };
+    const before = state;
+    recordResult(state, 'R1-M1', { home: 13, away: 7 });
+    expect(before.records['p1'].wins).toBe(0);
+  });
+
+  it('lève une erreur si le match est introuvable', () => {
+    const state = createSwiss(mkParticipants(2));
+    expect(() => recordResult(state, 'inexistant', { home: 1, away: 0 })).toThrow();
   });
 });
