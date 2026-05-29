@@ -1,6 +1,6 @@
 // lib/formats/swiss.test.ts
 import { describe, it, expect } from 'vitest';
-import { createSwiss, statusOf, recordResult } from './swiss';
+import { createSwiss, statusOf, recordResult, buchholz, generateNextRound } from './swiss';
 import type { Participant } from '../domain/types';
 
 function mkParticipants(n: number): Participant[] {
@@ -63,5 +63,38 @@ describe('recordResult', () => {
   it('lève une erreur si le match est introuvable', () => {
     const state = createSwiss(mkParticipants(2));
     expect(() => recordResult(state, 'inexistant', { home: 1, away: 0 })).toThrow();
+  });
+});
+
+describe('generateNextRound — ronde 1', () => {
+  it('apparie 4 équipes en 2 matchs, sans bye', () => {
+    const state = generateNextRound(createSwiss(mkParticipants(4)));
+    const r1 = state.matches.filter((m) => m.round === 1);
+    expect(r1).toHaveLength(2);
+    expect(r1.every((m) => m.away !== null)).toBe(true);
+    // chaque participant apparaît exactement une fois
+    const ids = r1.flatMap((m) => [m.home, m.away]);
+    expect(new Set(ids).size).toBe(4);
+  });
+
+  it('avec 5 équipes : 2 matchs + 1 bye déjà résolu (victoire auto)', () => {
+    const state = generateNextRound(createSwiss(mkParticipants(5)));
+    const r1 = state.matches.filter((m) => m.round === 1);
+    const byes = r1.filter((m) => m.away === null);
+    expect(byes).toHaveLength(1);
+    const byeTeam = byes[0].home;
+    expect(byes[0].score).toEqual({ home: 1, away: 0 }); // résolu
+    expect(state.records[byeTeam]).toMatchObject({ wins: 1, hadBye: true });
+  });
+});
+
+describe('buchholz', () => {
+  it('somme les victoires des adversaires affrontés', () => {
+    let state = createSwiss(mkParticipants(3), { winsToQualify: 9, lossesToEliminate: 9 });
+    // p1 a affronté p2 et p3 ; on leur donne des victoires
+    state.records['p1'].opponents = ['p2', 'p3'];
+    state.records['p2'].wins = 2;
+    state.records['p3'].wins = 1;
+    expect(buchholz(state, 'p1')).toBe(3);
   });
 });

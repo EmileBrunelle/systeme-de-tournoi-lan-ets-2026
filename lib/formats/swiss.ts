@@ -88,3 +88,78 @@ export function recordResult(
 
   return next;
 }
+
+export function buchholz(state: SwissState, id: ParticipantId): number {
+  return state.records[id].opponents.reduce((sum, oppId) => sum + state.records[oppId].wins, 0);
+}
+
+/** Numéro de la dernière ronde générée (0 si aucune). */
+export function currentRound(state: SwissState): number {
+  return state.matches.reduce((max, m) => Math.max(max, m.round), 0);
+}
+
+/** Compare deux participants par force décroissante (victoires, Buchholz, seed). */
+function strengthCompare(state: SwissState, a: Participant, b: Participant): number {
+  const wa = state.records[a.id].wins;
+  const wb = state.records[b.id].wins;
+  if (wb !== wa) return wb - wa;
+  const ba = buchholz(state, a.id);
+  const bb = buchholz(state, b.id);
+  if (bb !== ba) return bb - ba;
+  return a.seed - b.seed;
+}
+
+/**
+ * Génère la prochaine ronde. Apparie les participants actifs par force
+ * comparable, en évitant les revanches quand c'est possible. Si le nombre
+ * d'actifs est impair, attribue un bye (victoire auto) au moins bien classé
+ * n'en ayant pas encore eu. Le bye est résolu immédiatement.
+ */
+export function generateNextRound(state: SwissState): SwissState {
+  const unplayed = state.matches.some((m) => m.away !== null && m.score === null);
+  if (unplayed) throw new Error('Ronde précédente incomplète : enregistrez tous les résultats.');
+
+  const next = cloneState(state);
+  const round = currentRound(next) + 1;
+
+  const active = next.participants
+    .filter((p) => statusOf(next, p.id) === 'active')
+    .sort((a, b) => strengthCompare(next, a, b));
+
+  // Bye si impair
+  let byeId: ParticipantId | null = null;
+  if (active.length % 2 === 1) {
+    for (let i = active.length - 1; i >= 0; i--) {
+      if (!next.records[active[i].id].hadBye) { byeId = active[i].id; break; }
+    }
+    if (byeId === null) byeId = active[active.length - 1].id;
+    const idx = active.findIndex((p) => p.id === byeId);
+    active.splice(idx, 1);
+  }
+
+  // Appariement glouton anti-revanche
+  let matchNo = 0;
+  const pool = [...active];
+  while (pool.length >= 2) {
+    const home = pool.shift()!;
+    let oppIdx = pool.findIndex((o) => !next.records[home.id].opponents.includes(o.id));
+    if (oppIdx === -1) oppIdx = 0; // revanche inévitable
+    const away = pool.splice(oppIdx, 1)[0];
+    next.matches.push({
+      id: `R${round}-M${++matchNo}`,
+      round,
+      home: home.id,
+      away: away.id,
+      score: null,
+    });
+  }
+
+  // Bye résolu immédiatement
+  if (byeId) {
+    next.matches.push({ id: `R${round}-BYE`, round, home: byeId, away: null, score: { home: 1, away: 0 } });
+    next.records[byeId].wins += 1;
+    next.records[byeId].hadBye = true;
+  }
+
+  return next;
+}
