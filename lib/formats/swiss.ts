@@ -153,11 +153,37 @@ export function currentRound(state: SwissState): number {
   return state.matches.reduce((max, m) => Math.max(max, m.round), 0);
 }
 
-/** Compare deux participants par force décroissante (victoires, Buchholz, seed). */
+/**
+ * Numéro de la dernière ronde entièrement jouée (0 si aucune). Une ronde est
+ * complète quand chacun de ses matchs a un score (les byes comptent comme joués).
+ * Sert à savoir quelle manche on peut récapituler et à ancrer l'horaire restant.
+ */
+export function lastCompleteRound(state: SwissState): number {
+  for (let r = currentRound(state); r >= 1; r--) {
+    const inRound = state.matches.filter((m) => m.round === r);
+    if (inRound.length > 0 && inRound.every((m) => m.score !== null)) return r;
+  }
+  return 0;
+}
+
+/**
+ * Compare deux participants par force décroissante : victoires, puis MOINS de
+ * défaites, puis Buchholz, puis seed.
+ *
+ * Les défaites comptent avant le Buchholz : tous les qualifiés ont le même
+ * nombre de victoires (3), mais terminent à des rondes différentes (3-0, 3-1,
+ * 3-2). Sans ce critère, un 3-2 chanceux au Buchholz coifferait un 3-0 et
+ * hériterait d'un meilleur seed playoff — injuste. Pour l'appariement suisse
+ * c'est neutre : les équipes actives ont toutes joué le même nombre de parties,
+ * donc à victoires égales les défaites le sont aussi.
+ */
 function strengthCompare(state: SwissState, a: Participant, b: Participant): number {
   const wa = state.records[a.id].wins;
   const wb = state.records[b.id].wins;
   if (wb !== wa) return wb - wa;
+  const la = state.records[a.id].losses;
+  const lb = state.records[b.id].losses;
+  if (la !== lb) return la - lb;
   const ba = buchholz(state, a.id);
   const bb = buchholz(state, b.id);
   if (bb !== ba) return bb - ba;

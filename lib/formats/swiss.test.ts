@@ -9,6 +9,7 @@ import {
   buchholz,
   generateNextRound,
   currentRound,
+  lastCompleteRound,
   isComplete,
   qualifiers,
   standings,
@@ -37,6 +38,60 @@ describe('createSwiss', () => {
     const state = createSwiss(mkParticipants(4), { winsToQualify: 2, lossesToEliminate: 2 });
     expect(state.winsToQualify).toBe(2);
     expect(state.lossesToEliminate).toBe(2);
+  });
+});
+
+describe('lastCompleteRound', () => {
+  const base = createSwiss(mkParticipants(4));
+
+  it('retourne 0 quand aucune ronde générée', () => {
+    expect(lastCompleteRound(base)).toBe(0);
+  });
+
+  it('retourne 0 quand la ronde courante a encore un match non joué', () => {
+    const s: SwissState = {
+      ...base,
+      matches: [
+        { id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: { home: 13, away: 7 } },
+        { id: 'R1-M2', round: 1, home: 'p3', away: 'p4', score: null },
+      ],
+    };
+    expect(lastCompleteRound(s)).toBe(0);
+  });
+
+  it('retourne le numéro de la ronde quand tous ses matchs sont joués', () => {
+    const s: SwissState = {
+      ...base,
+      matches: [
+        { id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: { home: 13, away: 7 } },
+        { id: 'R1-M2', round: 1, home: 'p3', away: 'p4', score: { home: 13, away: 9 } },
+      ],
+    };
+    expect(lastCompleteRound(s)).toBe(1);
+  });
+
+  it('un bye (away null) compte comme joué', () => {
+    const s: SwissState = {
+      ...base,
+      matches: [
+        { id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: { home: 13, away: 7 } },
+        { id: 'R1-BYE', round: 1, home: 'p3', away: null, score: { home: 1, away: 0 } },
+      ],
+    };
+    expect(lastCompleteRound(s)).toBe(1);
+  });
+
+  it('retourne la ronde précédente quand la prochaine est générée mais non jouée', () => {
+    const s: SwissState = {
+      ...base,
+      matches: [
+        { id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: { home: 13, away: 7 } },
+        { id: 'R1-M2', round: 1, home: 'p3', away: 'p4', score: { home: 13, away: 9 } },
+        { id: 'R2-M1', round: 2, home: 'p1', away: 'p3', score: null },
+        { id: 'R2-M2', round: 2, home: 'p2', away: 'p4', score: null },
+      ],
+    };
+    expect(lastCompleteRound(s)).toBe(1);
   });
 });
 
@@ -274,5 +329,21 @@ describe('isComplete + qualifiers + standings', () => {
     // premier = qualifié, dernier = éliminé
     expect(table[0].status).toBe('qualified');
     expect(table[table.length - 1].status).toBe('eliminated');
+  });
+
+  it('départage les égalités de victoires par moins de défaites avant le Buchholz', () => {
+    // Deux qualifiés à 3 victoires : un 3-0 (Buchholz faible) et un 3-2 (Buchholz élevé).
+    // Le 3-0 doit primer — moins de défaites l'emporte sur un meilleur Buchholz.
+    const base = createSwiss(mkParticipants(2)); // p1, p2
+    const s: SwissState = {
+      ...base,
+      records: {
+        p1: { wins: 3, losses: 0, opponents: [], hadBye: false, forfeited: false },
+        p2: { wins: 3, losses: 2, opponents: ['p1'], hadBye: false, forfeited: false },
+      },
+    };
+    const table = standings(s);
+    expect(table[0].participantId).toBe('p1'); // 3-0 d'abord, malgré un Buchholz plus bas
+    expect(table[1].participantId).toBe('p2');
   });
 });
