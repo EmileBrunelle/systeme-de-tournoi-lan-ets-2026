@@ -1,24 +1,13 @@
 import 'server-only';
 import type { Tournament } from '@prisma/client';
 import { prisma } from './db';
-import type { Game, RunnerState } from '@/lib/runtime/runner';
+import type { RunnerState } from '@/lib/runtime/runner';
 
-/** Les trois tournois du LAN, un par jeu. Créés à la demande s'ils manquent. */
-export const GAMES: { game: Game; name: string }[] = [
-  { game: 'valorant', name: 'Valorant' },
-  { game: 'geoguessr', name: 'GeoGuessr' },
-  { game: 'trackmania', name: 'TrackMania' },
-];
-
-/** Garantit qu'une ligne Tournament existe pour chaque jeu (idempotent). */
-export async function ensureTournaments(): Promise<Tournament[]> {
-  for (const { game, name } of GAMES) {
-    const existing = await prisma.tournament.findFirst({ where: { game } });
-    if (!existing) {
-      await prisma.tournament.create({ data: { game, name, format: game } });
-    }
-  }
-  return prisma.tournament.findMany({ orderBy: { game: 'asc' } });
+/** LAN ÉTS : un seul tournoi, Valorant. Garanti à la demande (idempotent). */
+export async function ensureValorantTournament(): Promise<Tournament> {
+  const existing = await prisma.tournament.findFirst({ where: { game: 'valorant' } });
+  if (existing) return existing;
+  return prisma.tournament.create({ data: { game: 'valorant', name: 'Valorant', format: 'valorant' } });
 }
 
 export async function getTournament(id: string) {

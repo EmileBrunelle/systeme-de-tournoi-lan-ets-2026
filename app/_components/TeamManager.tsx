@@ -81,7 +81,7 @@ export default function TeamManager({ t, locked }: { t: TournamentWithRoster; lo
                     </TableCell>
                     <TableCell>
                       <Link
-                        href={`/t/${t.id}/equipe/${team.id}`}
+                        href={`/equipe/${team.id}`}
                         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                       >
                         <UserRound className="size-3.5" />

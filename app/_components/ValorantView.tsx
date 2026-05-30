@@ -1,7 +1,7 @@
 import { Trophy, Play } from 'lucide-react';
 import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
-import { estimateSchedule } from '@/lib/schedule/estimate';
+import { lanEtsValorantSchedule, saturdayEndTime, sleepGapMinutes } from '@/lib/schedule/lan-ets';
 import { valorantVitals } from '@/lib/valorant/dashboard';
 import type { ValorantState } from '@/lib/runtime/runner';
 import {
@@ -48,7 +48,7 @@ export default function ValorantView({
       )}
 
       {/* Sous le pli — consulté moins souvent */}
-      {state.phase === 'swiss' && <ScheduleEstimate state={state.swiss} />}
+      <LanEtsSchedule />
       <DiscordPanel blocks={discordBlocks(state)} />
       <DangerZone id={t.id} />
     </div>
@@ -82,6 +82,7 @@ function Setup({ t }: { t: TournamentWithRoster }) {
           </form>
         </CardContent>
       </Card>
+      <LanEtsSchedule />
     </div>
   );
 }
@@ -194,41 +195,57 @@ function SwissStandings({ state }: { state: ValorantState['swiss'] }) {
   );
 }
 
-function ScheduleEstimate({ state }: { state: ValorantState['swiss'] }) {
-  const round = swiss.currentRound(state);
-  if (round === 0) return null;
-  const counts: number[] = [];
-  for (let r = 1; r <= round; r++) {
-    counts.push(state.matches.filter((m) => m.round === r && m.away !== null).length);
-  }
-  const sched = estimateSchedule(counts);
+function LanEtsSchedule() {
+  const slots = lanEtsValorantSchedule();
+  const samedi = slots.filter((s) => s.day === 'samedi');
+  const finale = slots.find((s) => s.day === 'dimanche')!;
+  const fin = saturdayEndTime(slots);
+  const gap = sleepGapMinutes(slots);
+  const sommeil = `${Math.floor(gap / 60)}h${String(gap % 60).padStart(2, '0')}`;
+
+  const row = (s: (typeof slots)[number], i: number) => (
+    <TableRow key={`${s.day}-${i}`} className={s.kind === 'meal' ? 'text-muted-foreground' : undefined}>
+      <TableCell className="tabular-nums">{s.start}</TableCell>
+      <TableCell className="tabular-nums">{s.end}</TableCell>
+      <TableCell>
+        {s.label}
+        {s.stream && <Badge variant="secondary" className="ml-2 font-normal">📺 stream</Badge>}
+      </TableCell>
+      <TableCell className="text-right tabular-nums">{s.matches ?? '—'}</TableCell>
+    </TableRow>
+  );
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Horaire estimé</CardTitle>
+        <CardTitle>Horaire LAN ÉTS — Valorant</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="mb-3 text-sm text-muted-foreground">Hypothèse : 90 postes BYOC, 10 joueurs/match, 45 min/match.</p>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Samedi : suisse + playoff en BO1 (départ 9h30, lousse 15 min/ronde, dîner & souper).
+          Grande finale dimanche 8h sur le stream, en BO3.
+        </p>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Ronde</TableHead><TableHead>Jour</TableHead><TableHead>Début</TableHead>
-              <TableHead>Fin</TableHead><TableHead>Matchs</TableHead><TableHead>Vagues</TableHead>
+              <TableHead>Début</TableHead><TableHead>Fin</TableHead>
+              <TableHead>Bloc</TableHead><TableHead className="text-right">Matchs</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sched.map((r) => (
-              <TableRow key={r.round}>
-                <TableCell>{r.round}</TableCell>
-                <TableCell>J{r.day}</TableCell>
-                <TableCell className="tabular-nums">{r.start}</TableCell>
-                <TableCell className="tabular-nums">{r.end}</TableCell>
-                <TableCell>{r.matches}</TableCell>
-                <TableCell>{r.waves}</TableCell>
-              </TableRow>
-            ))}
+            <TableRow className="bg-muted/40">
+              <TableCell colSpan={4} className="font-semibold">Samedi 30 mai — matchs</TableCell>
+            </TableRow>
+            {samedi.map(row)}
+            <TableRow className="bg-muted/40">
+              <TableCell colSpan={4} className="font-semibold">Dimanche 31 mai — finale</TableCell>
+            </TableRow>
+            {row(finale, 0)}
           </TableBody>
         </Table>
+        <p className="mt-3 text-sm">
+          Fin samedi <span className="font-semibold tabular-nums">{fin}</span> · <span className="font-semibold tabular-nums">{sommeil}</span> de sommeil avant la finale.
+        </p>
       </CardContent>
     </Card>
   );

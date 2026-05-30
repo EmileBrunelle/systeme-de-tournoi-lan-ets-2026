@@ -8,11 +8,9 @@
 import type { Participant } from '../domain/types';
 import * as swiss from '../formats/swiss';
 import * as de from '../formats/double-elimination';
-import * as se from '../formats/single-elimination';
-import * as ta from '../formats/time-attack';
-import * as cup from '../formats/cup';
 
-export type Game = 'valorant' | 'geoguessr' | 'trackmania';
+/** LAN ÉTS : un seul jeu, Valorant. */
+export type Game = 'valorant';
 
 /** Valorant : phase suisse "à 3V/3D" puis playoff double-élimination (top N). */
 export interface ValorantState {
@@ -24,21 +22,7 @@ export interface ValorantState {
   playoff: de.DEState | null;
 }
 
-/** GeoGuessr : élimination simple + petite finale. */
-export interface GeoState {
-  game: 'geoguessr';
-  se: se.SEState;
-}
-
-/** TrackMania : Time Attack (qualif) puis cup (rondes à points + finale). */
-export interface TrackmaniaState {
-  game: 'trackmania';
-  phase: 'time-attack' | 'cup' | 'done';
-  ta: ta.TAState;
-  cup: cup.CupState | null;
-}
-
-export type RunnerState = ValorantState | GeoState | TrackmaniaState;
+export type RunnerState = ValorantState;
 
 export const DEFAULT_PLAYOFF_SIZE = 8;
 
@@ -54,22 +38,6 @@ export function startValorant(
     playoffSize,
     swiss: swiss.createSwiss(participants),
     playoff: null,
-  };
-}
-
-export function startGeoguessr(participants: Participant[]): GeoState {
-  return {
-    game: 'geoguessr',
-    se: se.createSingleElim(participants, { thirdPlaceMatch: true }),
-  };
-}
-
-export function startTrackmania(participants: Participant[]): TrackmaniaState {
-  return {
-    game: 'trackmania',
-    phase: 'time-attack',
-    ta: ta.createTimeAttack(participants),
-    cup: null,
   };
 }
 
@@ -96,26 +64,5 @@ export function startPlayoff(state: ValorantState): ValorantState {
     ...state,
     phase: 'playoff',
     playoff: de.createDoubleElim(participants, { grandFinalReset: false }),
-  };
-}
-
-/** Vrai quand la qualif Time Attack est complète (tous ont un temps). */
-export function canStartCup(state: TrackmaniaState): boolean {
-  return state.phase === 'time-attack' && ta.isComplete(state.ta);
-}
-
-/** Lance la cup, seedée par l'ordre de la Time Attack (le plus rapide = seed 1). */
-export function startCup(state: TrackmaniaState): TrackmaniaState {
-  const byId = new Map(state.ta.participants.map((p) => [p.id, p]));
-  const order = ta.seedingOrder(state.ta);
-  const participants: Participant[] = order.map((id, i) => ({
-    id,
-    name: byId.get(id)!.name,
-    seed: i + 1,
-  }));
-  return {
-    ...state,
-    phase: 'cup',
-    cup: cup.createCup(participants),
   };
 }

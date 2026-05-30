@@ -2,25 +2,23 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, MonitorPlay, ArrowLeft, Trophy } from 'lucide-react';
+import { LayoutDashboard, Users, MonitorPlay, Trophy } from 'lucide-react';
 import { cn } from '../_lib/utils';
 import { Badge } from './ui/badge';
 
 interface Props {
-  id: string;
   tournamentName: string;
   phase: string;
   started: boolean;
 }
 
-export default function AppSidebar({ id, tournamentName, phase, started }: Props) {
+export default function AppSidebar({ tournamentName, phase, started }: Props) {
   const pathname = usePathname();
-  const base = `/t/${id}`;
 
   const items = [
-    { href: base, label: 'Tableau de bord', icon: LayoutDashboard, exact: true },
-    { href: `${base}/equipes`, label: 'Équipes', icon: Users, match: [`${base}/equipes`, `${base}/equipe`] },
-    { href: `${base}/projecteur`, label: 'Projecteur', icon: MonitorPlay, exact: true },
+    { href: '/', label: 'Tableau de bord', icon: LayoutDashboard, exact: true },
+    { href: '/equipes', label: 'Équipes', icon: Users, match: ['/equipes', '/equipe'] },
+    { href: '/projecteur', label: 'Projecteur', icon: MonitorPlay, exact: true },
   ];
 
   const isActive = (item: (typeof items)[number]) => {
@@ -63,20 +61,13 @@ export default function AppSidebar({ id, tournamentName, phase, started }: Props
         })}
       </nav>
 
-      <div className="px-3 py-4">
-        {!started && (
-          <p className="mb-2 px-3 text-[11px] leading-snug text-muted-foreground">
+      {!started && (
+        <div className="px-3 py-4">
+          <p className="px-3 text-[11px] leading-snug text-muted-foreground">
             Tournoi non démarré. Configurez les équipes puis lancez la phase.
           </p>
-        )}
-        <Link
-          href="/"
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Tous les tournois
-        </Link>
-      </div>
+        </div>
+      )}
     </aside>
   );
 }

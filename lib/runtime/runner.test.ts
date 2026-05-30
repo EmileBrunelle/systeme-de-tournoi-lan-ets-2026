@@ -4,7 +4,6 @@ import { describe, it, expect } from 'vitest';
 import type { Participant } from '../domain/types';
 import * as swiss from '../formats/swiss';
 import * as de from '../formats/double-elimination';
-import * as ta from '../formats/time-attack';
 import * as runner from './runner';
 
 function makeParticipants(n: number): Participant[] {
@@ -53,36 +52,6 @@ describe('runner Valorant', () => {
   it('refuse le playoff tant que la suisse n’est pas finie', () => {
     const started = runner.startValorant(makeParticipants(8), 4);
     expect(runner.canStartPlayoff(started)).toBe(false);
-  });
-});
-
-describe('runner TrackMania', () => {
-  it('passe de la Time Attack à la cup, seedée par les temps', () => {
-    const started = runner.startTrackmania(makeParticipants(4));
-    expect(started.phase).toBe('time-attack');
-    expect(runner.canStartCup(started)).toBe(false);
-
-    // p3 le plus rapide, puis p1, p4, p2.
-    let s = started.ta;
-    s = ta.recordTime(s, 'p1', 20000);
-    s = ta.recordTime(s, 'p2', 40000);
-    s = ta.recordTime(s, 'p3', 10000);
-    s = ta.recordTime(s, 'p4', 30000);
-    const tmState: runner.TrackmaniaState = { ...started, ta: s };
-    expect(runner.canStartCup(tmState)).toBe(true);
-
-    const withCup = runner.startCup(tmState);
-    expect(withCup.phase).toBe('cup');
-    expect(withCup.cup!.participants.map((p) => p.id)).toEqual(['p3', 'p1', 'p4', 'p2']);
-    expect(withCup.cup!.participants.map((p) => p.seed)).toEqual([1, 2, 3, 4]);
-  });
-});
-
-describe('runner GeoGuessr', () => {
-  it('crée une élimination simple avec petite finale', () => {
-    const state = runner.startGeoguessr(makeParticipants(4));
-    expect(state.game).toBe('geoguessr');
-    expect(state.se.thirdPlaceMatch).toBe(true);
   });
 });
 

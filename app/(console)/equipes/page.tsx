@@ -1,14 +1,14 @@
 import { notFound } from 'next/navigation';
-import { getTournament } from '@/app/_lib/repo';
+import { ensureValorantTournament, getTournament } from '@/app/_lib/repo';
 import PageHeader from '@/app/_components/PageHeader';
 import TeamManager from '@/app/_components/TeamManager';
 
 export const dynamic = 'force-dynamic';
 
-export default async function TeamsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const t = await getTournament(id);
-  if (!t || t.game !== 'valorant') notFound();
+export default async function TeamsPage() {
+  const base = await ensureValorantTournament();
+  const t = await getTournament(base.id);
+  if (!t) notFound();
   const started = t.stateJson !== null;
 
   return (

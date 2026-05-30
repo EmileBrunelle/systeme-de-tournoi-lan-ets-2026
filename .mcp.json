@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "valorant": {
+      "command": "npx",
+      "args": ["tsx", "--env-file=.env", "mcp/server.ts"]
+    }
+  }
+}

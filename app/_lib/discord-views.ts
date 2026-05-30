@@ -4,7 +4,6 @@
 import type { ParticipantId } from '@/lib/domain/types';
 import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
-import * as se from '@/lib/formats/single-elimination';
 import {
   formatPairings,
   formatStandings,
@@ -109,44 +108,10 @@ function deBlocks(s: de.DEState): DiscordBlock[] {
   return blocks;
 }
 
-// ─── Élimination simple (GeoGuessr) ──────────────────────────────────────────
-
-function seBlocks(s: se.SEState): DiscordBlock[] {
-  const names = nameMap(s.participants);
-  const slot = (x: se.SESlot) => (x.kind === 'player' ? (names.get(x.id) ?? x.id) : x.kind === 'bye' ? 'bye' : 'à venir');
-  const blocks: DiscordBlock[] = [];
-
-  const playable = se.playableMatches(s);
-  if (playable.length > 0) {
-    const pairings: PairingRow[] = playable.map((m) => ({
-      a: slot(m.a),
-      b: slot(m.b),
-      note: m.bracket === 'third' ? 'petite finale' : undefined,
-    }));
-    blocks.push({ label: 'Matchs à jouer', chunks: formatPairings('Matchs à jouer', pairings) });
-  }
-
-  const standingRows: StandingRow[] = se.standings(s).map((r) => ({
-    rank: r.rank,
-    name: r.name,
-    detail: r.rank === 1 ? '🏆 Champion' : `Rang ${r.rank}`,
-  }));
-  blocks.push({ label: 'Classement', chunks: formatStandings('Classement', standingRows) });
-  return blocks;
-}
-
 // ─── Aiguillage ──────────────────────────────────────────────────────────────
 
 export function discordBlocks(state: RunnerState): DiscordBlock[] {
-  switch (state.game) {
-    case 'valorant':
-      return state.phase === 'swiss' || !state.playoff
-        ? swissBlocks(state.swiss)
-        : deBlocks(state.playoff);
-    case 'geoguessr':
-      return seBlocks(state.se);
-    case 'trackmania':
-      // Bloc générique : classement Time Attack ou cup côté composant.
-      return [];
-  }
+  return state.phase === 'swiss' || !state.playoff
+    ? swissBlocks(state.swiss)
+    : deBlocks(state.playoff);
 }

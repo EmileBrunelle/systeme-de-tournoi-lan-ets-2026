@@ -4,20 +4,15 @@ import { revalidatePath } from 'next/cache';
 import type { Participant } from '@/lib/domain/types';
 import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
-import * as se from '@/lib/formats/single-elimination';
-import * as ta from '@/lib/formats/time-attack';
-import * as cup from '@/lib/formats/cup';
 import * as runner from '@/lib/runtime/runner';
 import { averageRank } from '@/lib/valorant/rank';
 import { prisma } from './db';
 import { getTournament, loadState, saveState } from './repo';
-import { parseTimeToMs } from './format';
 
-function refresh(id: string) {
-  revalidatePath(`/t/${id}`);
-  revalidatePath(`/t/${id}/equipe`, 'layout');
-  revalidatePath(`/t/${id}/projecteur`);
-  revalidatePath('/');
+function refresh() {
+  revalidatePath('/', 'layout');
+  revalidatePath('/equipes');
+  revalidatePath('/projecteur');
 }
 
 /** Empêche les modifications structurelles (ajout/suppression d'équipe) une
@@ -49,29 +44,12 @@ function shuffled<T>(arr: T[]): T[] {
   return a;
 }
 
-/** Construit les participants (seed aléatoire) à partir du roster présent. */
+/** Construit les participants Valorant (seed aléatoire) à partir des équipes présentes. */
 async function rosterParticipants(id: string): Promise<Participant[]> {
   const t = await getTournament(id);
   if (!t) throw new Error('Tournoi introuvable.');
-  const entrants =
-    t.game === 'valorant'
-      ? t.teams.filter((x) => x.presence !== 'withdrawn').map((x) => ({ id: x.id, name: x.name }))
-      : t.players.filter((x) => x.presence !== 'withdrawn').map((x) => ({ id: x.id, name: x.name }));
+  const entrants = t.teams.filter((x) => x.presence !== 'withdrawn').map((x) => ({ id: x.id, name: x.name }));
   return shuffled(entrants).map((p, i) => ({ id: p.id, name: p.name, seed: i + 1 }));
-}
-
-// ─── Roster ──────────────────────────────────────────────────────────────────
-
-export async function addPlayer(id: string, name: string) {
-  const trimmed = name.trim();
-  if (!trimmed) return;
-  await prisma.player.create({ data: { tournamentId: id, name: trimmed } });
-  refresh(id);
-}
-
-export async function removePlayer(id: string, playerId: string) {
-  await prisma.player.delete({ where: { id: playerId } });
-  refresh(id);
 }
 
 const PRESENCE_CYCLE: Record<string, string> = {
@@ -87,17 +65,7 @@ export async function cycleTeamPresence(id: string, teamId: string) {
     where: { id: teamId },
     data: { presence: PRESENCE_CYCLE[team.presence] ?? 'unconfirmed' },
   });
-  refresh(id);
-}
-
-export async function cyclePlayerPresence(id: string, playerId: string) {
-  const player = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!player) return;
-  await prisma.player.update({
-    where: { id: playerId },
-    data: { presence: PRESENCE_CYCLE[player.presence] ?? 'unconfirmed' },
-  });
-  refresh(id);
+  refresh();
 }
 
 // ─── Démarrage ───────────────────────────────────────────────────────────────
@@ -108,22 +76,15 @@ export async function startTournament(id: string, playoffSize?: number) {
   const participants = await rosterParticipants(id);
   if (participants.length < 2) throw new Error('Au moins 2 participants requis.');
 
-  let state: runner.RunnerState;
-  if (t.game === 'valorant') {
-    state = runner.startValorant(participants, playoffSize ?? runner.DEFAULT_PLAYOFF_SIZE);
-  } else if (t.game === 'geoguessr') {
-    state = runner.startGeoguessr(participants);
-  } else {
-    state = runner.startTrackmania(participants);
-  }
+  const state = runner.startValorant(participants, playoffSize ?? runner.DEFAULT_PLAYOFF_SIZE);
   await saveState(id, state);
-  refresh(id);
+  refresh();
 }
 
 /** Remet le tournoi à zéro (efface l'état du moteur, garde le roster). */
 export async function resetTournament(id: string) {
   await prisma.tournament.update({ where: { id }, data: { stateJson: null } });
-  refresh(id);
+  refresh();
 }
 
 // ─── Valorant : suisse ─────────────────────────────────────────────────────────
@@ -134,7 +95,7 @@ export async function generateSwissRound(id: string) {
   if (!state || state.game !== 'valorant') throw new Error('État suisse invalide.');
   const next = { ...state, swiss: swiss.generateNextRound(state.swiss) };
   await saveState(id, next);
-  refresh(id);
+  refresh();
 }
 
 export async function recordSwissResult(id: string, matchId: string, home: number, away: number) {
@@ -143,7 +104,7 @@ export async function recordSwissResult(id: string, matchId: string, home: numbe
   if (!state || state.game !== 'valorant') throw new Error('État suisse invalide.');
   const next = { ...state, swiss: swiss.recordResult(state.swiss, matchId, { home, away }) };
   await saveState(id, next);
-  refresh(id);
+  refresh();
 }
 
 export async function startPlayoff(id: string) {
@@ -152,7 +113,7 @@ export async function startPlayoff(id: string) {
   if (!state || state.game !== 'valorant') throw new Error('État Valorant invalide.');
   if (!runner.canStartPlayoff(state)) throw new Error('La phase suisse n’est pas terminée.');
   await saveState(id, runner.startPlayoff(state));
-  refresh(id);
+  refresh();
 }
 
 export async function recordPlayoffResult(id: string, matchId: string, a: number, b: number) {
@@ -162,46 +123,7 @@ export async function recordPlayoffResult(id: string, matchId: string, a: number
   const playoff = de.recordResult(state.playoff, matchId, { a, b });
   const phase = de.isComplete(playoff) ? 'done' : 'playoff';
   await saveState(id, { ...state, playoff, phase });
-  refresh(id);
-}
-
-// ─── GeoGuessr : élimination simple ──────────────────────────────────────────
-
-export async function recordSeResult(id: string, matchId: string, a: number, b: number) {
-  const t = await getTournament(id);
-  const state = t && loadState(t);
-  if (!state || state.game !== 'geoguessr') throw new Error('État GeoGuessr invalide.');
-  await saveState(id, { ...state, se: se.recordResult(state.se, matchId, { a, b }) });
-  refresh(id);
-}
-
-// ─── TrackMania : Time Attack puis cup ───────────────────────────────────────
-
-export async function recordTime(id: string, playerId: string, timeMs: number) {
-  const t = await getTournament(id);
-  const state = t && loadState(t);
-  if (!state || state.game !== 'trackmania') throw new Error('État TrackMania invalide.');
-  await saveState(id, { ...state, ta: ta.recordTime(state.ta, playerId, timeMs) });
-  refresh(id);
-}
-
-export async function startCup(id: string) {
-  const t = await getTournament(id);
-  const state = t && loadState(t);
-  if (!state || state.game !== 'trackmania') throw new Error('État TrackMania invalide.');
-  if (!runner.canStartCup(state)) throw new Error('La Time Attack n’est pas terminée.');
-  await saveState(id, runner.startCup(state));
-  refresh(id);
-}
-
-export async function recordRace(id: string, round: number, order: string[]) {
-  const t = await getTournament(id);
-  const state = t && loadState(t);
-  if (!state || state.game !== 'trackmania' || !state.cup) throw new Error('État cup invalide.');
-  const cupState = cup.recordRace(state.cup, round, order);
-  const phase = cup.isComplete(cupState) ? 'done' : 'cup';
-  await saveState(id, { ...state, cup: cupState, phase });
-  refresh(id);
+  refresh();
 }
 
 // ─── Variantes <form action> (lisent un FormData) ────────────────────────────
@@ -212,35 +134,12 @@ export async function submitStart(id: string, formData: FormData) {
   await startTournament(id, Number.isFinite(size) && size > 0 ? size : undefined);
 }
 
-export async function submitAddPlayer(id: string, formData: FormData) {
-  await addPlayer(id, String(formData.get('name') ?? ''));
-}
-
 export async function submitSwissResult(id: string, matchId: string, formData: FormData) {
   await recordSwissResult(id, matchId, Number(formData.get('home')), Number(formData.get('away')));
 }
 
 export async function submitPlayoffResult(id: string, matchId: string, formData: FormData) {
   await recordPlayoffResult(id, matchId, Number(formData.get('a')), Number(formData.get('b')));
-}
-
-export async function submitSeResult(id: string, matchId: string, formData: FormData) {
-  await recordSeResult(id, matchId, Number(formData.get('a')), Number(formData.get('b')));
-}
-
-export async function submitTime(id: string, playerId: string, formData: FormData) {
-  const raw = String(formData.get('time') ?? '').trim();
-  const ms = parseTimeToMs(raw);
-  if (ms !== null) await recordTime(id, playerId, ms);
-}
-
-export async function submitRace(id: string, round: number, count: number, formData: FormData) {
-  const order: string[] = [];
-  for (let pos = 1; pos <= count; pos++) {
-    const pid = String(formData.get(`pos${pos}`) ?? '');
-    if (pid) order.push(pid);
-  }
-  await recordRace(id, round, order);
 }
 
 // ─── Gestion des équipes Valorant (CRUD) ─────────────────────────────────────
@@ -250,7 +149,7 @@ export async function addTeam(id: string, name: string) {
   if (!trimmed) return;
   await assertNotStarted(id);
   await prisma.team.create({ data: { tournamentId: id, name: trimmed } });
-  refresh(id);
+  refresh();
 }
 
 export async function renameTeam(id: string, teamId: string, name: string) {
@@ -258,13 +157,13 @@ export async function renameTeam(id: string, teamId: string, name: string) {
   if (!trimmed) return;
   // Renommer reste permis même après démarrage (cosmétique côté base).
   await prisma.team.update({ where: { id: teamId }, data: { name: trimmed } });
-  refresh(id);
+  refresh();
 }
 
 export async function deleteTeam(id: string, teamId: string) {
   await assertNotStarted(id);
   await prisma.team.delete({ where: { id: teamId } });
-  refresh(id);
+  refresh();
 }
 
 // ─── Gestion des membres d'une équipe ────────────────────────────────────────
@@ -299,7 +198,7 @@ export async function addMember(id: string, teamId: string, formData: FormData) 
   if (!data.username) return;
   await prisma.member.create({ data: { teamId, ...data } });
   await recomputeAvgRank(teamId);
-  refresh(id);
+  refresh();
 }
 
 export async function updateMember(id: string, teamId: string, memberId: string, formData: FormData) {
@@ -307,13 +206,13 @@ export async function updateMember(id: string, teamId: string, memberId: string,
   if (!data.username) return;
   await prisma.member.update({ where: { id: memberId }, data });
   await recomputeAvgRank(teamId);
-  refresh(id);
+  refresh();
 }
 
 export async function deleteMember(id: string, teamId: string, memberId: string) {
   await prisma.member.delete({ where: { id: memberId } });
   await recomputeAvgRank(teamId);
-  refresh(id);
+  refresh();
 }
 
 // ─── Variantes <form action> pour les équipes ────────────────────────────────

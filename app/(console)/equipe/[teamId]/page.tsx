@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Check, Plus } from 'lucide-react';
 import { prisma } from '@/app/_lib/db';
+import { ensureValorantTournament } from '@/app/_lib/repo';
 import { addMember, deleteMember, submitRenameTeam, updateMember } from '@/app/_lib/actions';
 import PageHeader from '@/app/_components/PageHeader';
 import ConfirmDialog from '@/app/_components/ConfirmDialog';
@@ -60,19 +61,21 @@ function RoleSelect({ defaultValue }: { defaultValue: 'starter' | 'sub' }) {
 export default async function TeamRosterPage({
   params,
 }: {
-  params: Promise<{ id: string; teamId: string }>;
+  params: Promise<{ teamId: string }>;
 }) {
-  const { id, teamId } = await params;
+  const { teamId } = await params;
+  const t = await ensureValorantTournament();
   const team = await prisma.team.findUnique({
     where: { id: teamId },
     include: { members: { orderBy: [{ isSub: 'asc' }, { username: 'asc' }] } },
   });
-  if (!team || team.tournamentId !== id) notFound();
+  if (!team || team.tournamentId !== t.id) notFound();
+  const id = t.id;
 
   return (
     <div className="space-y-6">
       <Link
-        href={`/t/${id}/equipes`}
+        href="/equipes"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> Gestion des équipes
