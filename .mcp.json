@@ -3,6 +3,10 @@
     "valorant": {
       "command": "npx",
       "args": ["tsx", "--env-file=.env", "mcp/server.ts"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
     }
   }
 }

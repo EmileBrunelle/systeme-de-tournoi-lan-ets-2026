@@ -122,26 +122,30 @@ function SwissDashboard({ t, state }: { t: TournamentWithRoster; state: Valorant
             <p className="text-sm text-muted-foreground">Aucune ronde générée.</p>
           ) : (
             current.map((m) => (
-              <div key={m.id} className="flex flex-wrap items-center gap-3 border-b border-border py-2.5 last:border-0">
-                <span className="min-w-[150px] font-medium">{nm(m.home)}</span>
-                {m.away === null ? (
-                  <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">bye — victoire auto</Badge>
-                ) : (
-                  <>
-                    <span className="text-sm text-muted-foreground">vs</span>
-                    <span className="min-w-[150px] font-medium">{nm(m.away)}</span>
-                    {m.score ? (
-                      <Badge variant="secondary" className="tabular-nums">{m.score.home}–{m.score.away}</Badge>
-                    ) : (
-                      <form action={submitSwissResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
-                        <Input type="number" name="home" min={0} required aria-label="Score domicile" className="h-9 w-16" />
-                        <span className="text-muted-foreground">–</span>
-                        <Input type="number" name="away" min={0} required aria-label="Score visiteur" className="h-9 w-16" />
-                        <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
-                      </form>
-                    )}
-                  </>
-                )}
+              <div key={m.id} className="flex items-center gap-3 border-b border-border py-2.5 last:border-0">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-medium">{nm(m.home)}</span>
+                  {m.away !== null && (
+                    <>
+                      <span className="text-sm text-muted-foreground">vs</span>
+                      <span className="font-medium">{nm(m.away)}</span>
+                    </>
+                  )}
+                </div>
+                <div className="shrink-0">
+                  {m.away === null ? (
+                    <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">bye — victoire auto</Badge>
+                  ) : m.score ? (
+                    <Badge variant="secondary" className="tabular-nums">{m.score.home}–{m.score.away}</Badge>
+                  ) : (
+                    <form action={submitSwissResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
+                      <Input type="number" name="home" min={0} required aria-label="Score domicile" className="h-9 w-16" />
+                      <span className="text-muted-foreground">–</span>
+                      <Input type="number" name="away" min={0} required aria-label="Score visiteur" className="h-9 w-16" />
+                      <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
+                    </form>
+                  )}
+                </div>
               </div>
             ))
           )}
@@ -280,12 +284,14 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
             <p className="text-sm text-muted-foreground">{champ ? 'Tournoi terminé.' : 'Aucun match jouable pour le moment.'}</p>
           ) : (
             playable.map((m) => (
-              <div key={m.id} className="flex flex-wrap items-center gap-3 border-b border-border py-2.5 last:border-0">
-                <Badge variant="outline" className="text-muted-foreground">{BRACKET_LABEL[m.bracket] ?? m.bracket}</Badge>
-                <span className="min-w-[150px] font-medium">{slot(m.a)}</span>
-                <span className="text-sm text-muted-foreground">vs</span>
-                <span className="min-w-[150px] font-medium">{slot(m.b)}</span>
-                <form action={submitPlayoffResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
+              <div key={m.id} className="flex items-center gap-3 border-b border-border py-2.5 last:border-0">
+                <Badge variant="outline" className="shrink-0 text-muted-foreground">{BRACKET_LABEL[m.bracket] ?? m.bracket}</Badge>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-medium">{slot(m.a)}</span>
+                  <span className="text-sm text-muted-foreground">vs</span>
+                  <span className="font-medium">{slot(m.b)}</span>
+                </div>
+                <form action={submitPlayoffResult.bind(null, t.id, m.id)} className="flex shrink-0 items-center gap-1.5">
                   <Input type="number" name="a" min={0} required aria-label="Score A" className="h-9 w-16" />
                   <span className="text-muted-foreground">–</span>
                   <Input type="number" name="b" min={0} required aria-label="Score B" className="h-9 w-16" />
