@@ -1,0 +1,63 @@
+// Prisma + SQLite. Base de données LOCALE uniquement (données sensibles de
+// joueurs) — jamais sur git. Voir .gitignore. SQLite n'a pas d'enum : les
+// champs de type fermé sont des String documentées par commentaire.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Un tournoi par jeu. L'état du moteur pur (lib/) est sérialisé en JSON
+/// dans `stateJson` : une action UI = charger stateJson -> moteur pur -> sauver.
+model Tournament {
+  id        String   @id @default(cuid())
+  game      String // "valorant" | "geoguessr" | "trackmania"
+  name      String
+  format    String // pipeline : "valorant" | "geoguessr" | "trackmania"
+  stateJson String? // état sérialisé du runner (null tant que non démarré)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teams   Team[]
+  players Player[]
+}
+
+/// Équipe Valorant (import xlsx). avgRank = moyenne des rangs des titulaires.
+model Team {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name         String
+  seed         Int        @default(0)
+  avgRank      Float?
+  presence     String     @default("unconfirmed") // confirmed | unconfirmed | withdrawn
+  members      Member[]
+}
+
+/// Membre d'une équipe Valorant. Données sensibles (email/identifiant) :
+/// uniquement en base locale, jamais loggées ni exportées.
+model Member {
+  id         String  @id @default(cuid())
+  teamId     String
+  team       Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  username   String
+  email      String?
+  identifier String?
+  rank       String?
+  seat       String?
+  isSub      Boolean @default(false)
+}
+
+/// Joueur solo (GeoGuessr / TrackMania).
+model Player {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name         String
+  seed         Int        @default(0)
+  presence     String     @default("unconfirmed") // confirmed | unconfirmed | withdrawn
+}
