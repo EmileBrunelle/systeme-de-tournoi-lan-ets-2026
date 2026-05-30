@@ -1,6 +1,12 @@
 // lib/discord/format.ts
 import { DISCORD_LIMIT, splitForDiscord } from './split';
 
+/** Un message Discord prêt à copier, déjà découpé en morceaux <= 2000 caractères. */
+export interface DiscordBlock {
+  label: string;
+  chunks: string[];
+}
+
 // ─── View-model interfaces ────────────────────────────────────────────────────
 
 /** A single pairing row. `b` is null for a bye; `note` is an optional annotation. */

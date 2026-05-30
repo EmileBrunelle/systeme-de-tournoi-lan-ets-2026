@@ -24,12 +24,16 @@ describe('lanEtsValorantSchedule', () => {
     expect(meals).toEqual(['Dîner', 'Souper']);
   });
 
-  it('signale le match diffusé à midi (ronde en cours à 12:00)', () => {
+  it('ne pré-étiquette aucune ronde du samedi comme « stream » (décidé en direct)', () => {
     const s = lanEtsValorantSchedule();
     const streamedSamedi = s.filter((x) => x.stream && x.day === 'samedi');
-    expect(streamedSamedi).toHaveLength(1);
-    // avec un départ à 10:00, la ronde 2 court 11:10–12:20, donc elle englobe midi
-    expect(streamedSamedi[0].start <= '12:00' && streamedSamedi[0].end > '12:00').toBe(true);
+    expect(streamedSamedi).toHaveLength(0);
+  });
+
+  it('marque la grande finale du dimanche comme diffusée (fait fixe)', () => {
+    const s = lanEtsValorantSchedule();
+    const finale = s.find((x) => x.day === 'dimanche')!;
+    expect(finale.stream).toBe(true);
   });
 
   it('termine samedi à 23:40 avec les défauts (départ 10:00, lousse 15)', () => {

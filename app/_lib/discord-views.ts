@@ -10,18 +10,16 @@ import {
   formatResults,
   formatSchedule,
   bilingualChunks,
+  type DiscordBlock,
   type PairingRow,
   type ResultRow,
   type StandingRow,
 } from '@/lib/discord/format';
+import { roundRecap, type RecapOptions } from '@/lib/discord/recap';
 import { estimateSchedule } from '@/lib/schedule/estimate';
 import type { RunnerState } from '@/lib/runtime/runner';
 
-export interface DiscordBlock {
-  label: string;
-  /** Message Discord déjà découpé en morceaux <= 2000 caractères. */
-  chunks: string[];
-}
+export type { DiscordBlock };
 
 function nameMap(participants: { id: ParticipantId; name: string }[]): Map<ParticipantId, string> {
   return new Map(participants.map((p) => [p.id, p.name]));
@@ -30,12 +28,14 @@ function nameMap(participants: { id: ParticipantId; name: string }[]): Map<Parti
 // Chaque message Discord est bilingue : section française (🇫🇷) puis anglaise (🇬🇧),
 // chacune avec son drapeau. Les noms d'équipes et scores sont neutres ; seules les
 // annotations (bye, forfait, bris d'égalité, libellés d'horaire) sont traduites.
-const FR = '🇫🇷';
-const EN = '🇬🇧';
+// Shortcodes Discord plutôt que les emojis unicode : ils rendent le drapeau de
+// façon fiable peu importe la police du client, sans risque d'afficher « FR »/« GB ».
+const FR = ':flag_fr:';
+const EN = ':flag_gb:';
 
 // ─── Suisse (Valorant) ─────────────────────────────────────────────────────
 
-function swissBlocks(s: swiss.SwissState): DiscordBlock[] {
+function swissBlocks(s: swiss.SwissState, now: string): DiscordBlock[] {
   const names = nameMap(s.participants);
   const nm = (id: ParticipantId | null) => (id ? (names.get(id) ?? id) : null);
   const blocks: DiscordBlock[] = [];
@@ -84,24 +84,30 @@ function swissBlocks(s: swiss.SwissState): DiscordBlock[] {
     ),
   });
 
-  // Horaire estimé d'après les rondes déjà générées.
-  const counts: number[] = [];
-  for (let r = 1; r <= round; r++) {
-    counts.push(s.matches.filter((m) => m.round === r && m.away !== null).length);
+  // Horaire estimé ancré sur l'heure réelle (`now`) : on ne projette que les
+  // rondes à venir — la ronde en cours + celles déjà tirées mais pas jouées.
+  // Les rondes terminées sont de l'histoire ; les replanifier depuis 10h
+  // affichait des heures déjà passées en cas de retard.
+  const done = swiss.lastCompleteRound(s);
+  const upcoming: { round: number; matches: number }[] = [];
+  for (let r = done + 1; r <= round; r++) {
+    upcoming.push({ round: r, matches: s.matches.filter((m) => m.round === r && m.away !== null).length });
   }
-  if (counts.length > 0) {
-    // Départ aligné sur le LAN ÉTS (10h), comme l'horaire fixe de la console.
-    const sched = estimateSchedule(counts, { dayStart: '10:00', nextDayStart: '10:00' });
+  if (upcoming.length > 0) {
+    const sched = estimateSchedule(
+      upcoming.map((u) => u.matches),
+      { dayStart: now, nextDayStart: now },
+    );
     blocks.push({
       label: 'Horaire estimé',
       chunks: bilingualChunks(
         formatSchedule(
-          `${FR} Horaire estimé — Phase suisse`,
-          sched.map((r) => ({ time: `J${r.day} ${r.start}`, label: `Ronde ${r.round} (${r.matches} matchs)` })),
+          `${FR} Horaire estimé — à partir de ${now}`,
+          sched.map((r, i) => ({ time: `J${r.day} ${r.start}`, label: `Ronde ${upcoming[i].round} (${r.matches} matchs)` })),
         ),
         formatSchedule(
-          `${EN} Estimated schedule — Swiss stage`,
-          sched.map((r) => ({ time: `D${r.day} ${r.start}`, label: `Round ${r.round} (${r.matches} matches)` })),
+          `${EN} Estimated schedule — from ${now}`,
+          sched.map((r, i) => ({ time: `D${r.day} ${r.start}`, label: `Round ${upcoming[i].round} (${r.matches} matches)` })),
         ),
       ),
     });
@@ -144,8 +150,12 @@ function deBlocks(s: de.DEState): DiscordBlock[] {
 
 // ─── Aiguillage ──────────────────────────────────────────────────────────────
 
-export function discordBlocks(state: RunnerState): DiscordBlock[] {
-  return state.phase === 'swiss' || !state.playoff
-    ? swissBlocks(state.swiss)
-    : deBlocks(state.playoff);
+export function discordBlocks(state: RunnerState, opts: RecapOptions): DiscordBlock[] {
+  if (state.phase === 'swiss' || !state.playoff) {
+    // Le récap de fin de manche passe en tête quand une manche est complète.
+    const recap = roundRecap(state, opts);
+    const blocks = swissBlocks(state.swiss, opts.now);
+    return recap ? [recap, ...blocks] : blocks;
+  }
+  return deBlocks(state.playoff);
 }

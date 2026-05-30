@@ -17,6 +17,17 @@ import * as de from '../lib/formats/double-elimination';
 import * as runner from '../lib/runtime/runner';
 import { lanEtsValorantSchedule, saturdayEndTime, sleepGapMinutes } from '../lib/schedule/lan-ets';
 import { seedByStrength } from '../lib/valorant/seeding';
+import { roundRecap } from '../lib/discord/recap';
+
+/** Heure « HH:MM » actuelle au fuseau de l'ÉTS (Montréal). */
+function montrealNow(): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Toronto',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date());
+}
 
 const prisma = new PrismaClient();
 
@@ -95,6 +106,11 @@ const tools = [
     },
   },
   { name: 'schedule', description: 'Horaire LAN ÉTS prévu (samedi suisse+playoff BO1, finale dimanche 8h BO3).', inputSchema: { type: 'object', properties: {} } },
+  {
+    name: 'round_recap',
+    description: 'Récap Discord de la dernière manche complète (résultats, faits saillants, classement, prochaine manche + heure estimée). Texte bilingue prêt à coller.',
+    inputSchema: { type: 'object', properties: { now: { type: 'string', description: 'Heure « HH:MM » d’ancrage (défaut : horloge serveur au fuseau ÉTS).' } } },
+  },
 ];
 
 // ─── Exécution des outils ─────────────────────────────────────────────────
@@ -208,6 +224,15 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<unk
     case 'schedule': {
       const slots = lanEtsValorantSchedule();
       return { finSamedi: saturdayEndTime(slots), sommeilMin: sleepGapMinutes(slots), blocs: slots.map((x) => ({ jour: x.day, début: x.start, fin: x.end, bloc: x.label, matchs: x.matches, stream: x.stream ?? false })) };
+    }
+
+    case 'round_recap': {
+      const s = requireState(ctx.state);
+      const now = typeof args.now === 'string' && /^\d{1,2}:\d{2}$/.test(args.now) ? args.now : montrealNow();
+      const rankById = Object.fromEntries(ctx.teams.map((t) => [t.id, t.avgRank]));
+      const block = roundRecap(s, { now, rankById });
+      if (!block) return { note: 'Aucune manche complète à récapituler (ou hors phase suisse).' };
+      return { manche: block.label, message: block.chunks.join('\n\n') };
     }
 
     default:

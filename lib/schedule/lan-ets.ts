@@ -20,7 +20,7 @@ export interface SchedSlot {
   end: string; // "HH:MM"
   /** Nombre de matchs (vagues de match), absent pour un repas. */
   matches?: number;
-  /** Vrai pour la ronde mise en avant sur le stream (midi). */
+  /** Vrai pour la grande finale du dimanche (seule diffusion planifiée). */
   stream?: boolean;
 }
 
@@ -33,7 +33,6 @@ const LUNCH = '12:00';
 const SUPPER = '17:30';
 const MEAL_MIN = 60;
 const FINAL_START = '08:00'; // dimanche, sur le stream
-const STREAM_NOON = '12:00'; // match mis en avant à midi
 
 /** Vagues séquentielles du samedi : suisse [8,8,8,6,3] + playoff sans la finale. */
 const SATURDAY: { label: string; matches: number }[] = [
@@ -70,7 +69,6 @@ export function lanEtsValorantSchedule(config?: LanEtsConfig): SchedSlot[] {
   const slack = config?.slackMin ?? 15;
   const lunchAt = parse(LUNCH);
   const supperAt = parse(SUPPER);
-  const noonAt = parse(STREAM_NOON);
 
   const slots: SchedSlot[] = [];
   let cursor = parse(config?.saturdayStart ?? '10:00');
@@ -91,7 +89,9 @@ export function lanEtsValorantSchedule(config?: LanEtsConfig): SchedSlot[] {
 
     const start = cursor;
     cursor += SETUP_MIN + BO1_MIN + slack;
-    const onStream = start <= noonAt && cursor > noonAt;
+    // On ne pré-étiquette aucune ronde du samedi comme « stream » : la ronde
+    // diffusée se décide en direct (ç'a été la manche 1 cette année), pas selon
+    // l'heure de midi.
     slots.push({
       day: 'samedi',
       kind: 'match',
@@ -99,7 +99,6 @@ export function lanEtsValorantSchedule(config?: LanEtsConfig): SchedSlot[] {
       start: fmt(start),
       end: fmt(cursor),
       matches: wave.matches,
-      ...(onStream ? { stream: true } : {}),
     });
   }
 

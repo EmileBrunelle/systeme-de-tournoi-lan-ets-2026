@@ -39,6 +39,14 @@ export default function ValorantView({
   if (!state) return <Setup t={t} />;
 
   const vitals = valorantVitals(state);
+  // Heure réelle (fuseau de l'ÉTS) pour ancrer l'horaire estimé et le récap.
+  const now = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Toronto',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date());
+  const rankById = Object.fromEntries(t.teams.map((team) => [team.id, team.avgRank]));
 
   return (
     <div className="space-y-6">
@@ -54,7 +62,7 @@ export default function ValorantView({
 
       {/* Sous le pli — consulté moins souvent */}
       <LanEtsSchedule />
-      <DiscordPanel blocks={discordBlocks(state)} />
+      <DiscordPanel blocks={discordBlocks(state, { now, rankById })} />
       <DangerZone id={t.id} />
     </div>
   );
@@ -161,10 +169,10 @@ function SwissDashboard({ t, state }: { t: TournamentWithRoster; state: Valorant
                     )
                   ) : (
                     <>
-                      <form action={submitSwissResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
-                        <Input type="number" name="home" min={0} required aria-label="Score domicile" className="h-9 w-16" />
+                      <form action={submitSwissResult.bind(null, t.id, m.id)} autoComplete="off" className="flex items-center gap-1.5">
+                        <Input type="number" name="home" min={0} required autoComplete="off" defaultValue="" aria-label="Score domicile" className="h-9 w-16" />
                         <span className="text-muted-foreground">–</span>
-                        <Input type="number" name="away" min={0} required aria-label="Score visiteur" className="h-9 w-16" />
+                        <Input type="number" name="away" min={0} required autoComplete="off" defaultValue="" aria-label="Score visiteur" className="h-9 w-16" />
                         <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
                       </form>
                       <ForfeitDialog
@@ -347,10 +355,10 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
                   <span className="font-medium">{slot(m.b)}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <form action={submitPlayoffResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
-                    <Input type="number" name="a" min={0} required aria-label="Score A" className="h-9 w-16" />
+                  <form action={submitPlayoffResult.bind(null, t.id, m.id)} autoComplete="off" className="flex items-center gap-1.5">
+                    <Input type="number" name="a" min={0} required autoComplete="off" defaultValue="" aria-label="Score A" className="h-9 w-16" />
                     <span className="text-muted-foreground">–</span>
-                    <Input type="number" name="b" min={0} required aria-label="Score B" className="h-9 w-16" />
+                    <Input type="number" name="b" min={0} required autoComplete="off" defaultValue="" aria-label="Score B" className="h-9 w-16" />
                     <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
                   </form>
                   <ForfeitDialog
