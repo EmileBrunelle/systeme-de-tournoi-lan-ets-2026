@@ -7,9 +7,9 @@ import {
 } from './lan-ets';
 
 describe('lanEtsValorantSchedule', () => {
-  it('démarre samedi à 09:30 par défaut', () => {
+  it('démarre samedi à 10:00 par défaut', () => {
     const s = lanEtsValorantSchedule();
-    expect(s[0]).toMatchObject({ day: 'samedi', kind: 'match', start: '09:30' });
+    expect(s[0]).toMatchObject({ day: 'samedi', kind: 'match', start: '10:00' });
   });
 
   it('place les 5 rondes suisses puis 5 vagues de playoff samedi (sans la finale)', () => {
@@ -28,13 +28,13 @@ describe('lanEtsValorantSchedule', () => {
     const s = lanEtsValorantSchedule();
     const streamedSamedi = s.filter((x) => x.stream && x.day === 'samedi');
     expect(streamedSamedi).toHaveLength(1);
-    // la ronde 3 court 11:50–13:00, donc elle englobe midi
+    // avec un départ à 10:00, la ronde 2 court 11:10–12:20, donc elle englobe midi
     expect(streamedSamedi[0].start <= '12:00' && streamedSamedi[0].end > '12:00').toBe(true);
   });
 
-  it('termine samedi à 23:10 avec les défauts (départ 09:30, lousse 15)', () => {
+  it('termine samedi à 23:40 avec les défauts (départ 10:00, lousse 15)', () => {
     const s = lanEtsValorantSchedule();
-    expect(saturdayEndTime(s)).toBe('23:10');
+    expect(saturdayEndTime(s)).toBe('23:40');
   });
 
   it('place la grande finale dimanche à 08:00 en BO3', () => {
@@ -43,9 +43,9 @@ describe('lanEtsValorantSchedule', () => {
     expect(final).toMatchObject({ day: 'dimanche', start: '08:00', label: expect.stringContaining('BO3') });
   });
 
-  it('laisse 8h50 de sommeil avant la finale avec les défauts', () => {
+  it('laisse 8h20 de sommeil avant la finale avec les défauts', () => {
     const s = lanEtsValorantSchedule();
-    expect(sleepGapMinutes(s)).toBe(530); // 8h50
+    expect(sleepGapMinutes(s)).toBe(500); // 8h20
   });
 
   it('plus de lousse repousse la fin de samedi', () => {

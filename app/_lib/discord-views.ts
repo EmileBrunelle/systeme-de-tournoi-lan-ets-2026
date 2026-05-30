@@ -90,8 +90,8 @@ function swissBlocks(s: swiss.SwissState): DiscordBlock[] {
     counts.push(s.matches.filter((m) => m.round === r && m.away !== null).length);
   }
   if (counts.length > 0) {
-    // Départ aligné sur le LAN ÉTS (9h30), comme l'horaire fixe de la console.
-    const sched = estimateSchedule(counts, { dayStart: '09:30', nextDayStart: '09:30' });
+    // Départ aligné sur le LAN ÉTS (10h), comme l'horaire fixe de la console.
+    const sched = estimateSchedule(counts, { dayStart: '10:00', nextDayStart: '10:00' });
     blocks.push({
       label: 'Horaire estimé',
       chunks: bilingualChunks(

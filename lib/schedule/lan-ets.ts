@@ -6,7 +6,7 @@
 // l'événement (rencontre 9h, dîner, souper, finale dimanche 8h en BO3).
 
 export interface LanEtsConfig {
-  /** Heure du premier match samedi, "HH:MM". Défaut "09:30". */
+  /** Heure du premier match samedi, "HH:MM". Défaut "10:00". */
   saturdayStart?: string;
   /** Lousse pour imprévus, en minutes par ronde. Défaut 15. */
   slackMin?: number;
@@ -73,7 +73,7 @@ export function lanEtsValorantSchedule(config?: LanEtsConfig): SchedSlot[] {
   const noonAt = parse(STREAM_NOON);
 
   const slots: SchedSlot[] = [];
-  let cursor = parse(config?.saturdayStart ?? '09:30');
+  let cursor = parse(config?.saturdayStart ?? '10:00');
   let lunchTaken = false;
   let supperTaken = false;
 
