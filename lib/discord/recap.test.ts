@@ -49,15 +49,37 @@ describe('roundRecap', () => {
     expect(out).toContain('11:40');
   });
 
-  it('signale les surprises (équipe moins bien classée qui gagne)', () => {
-    let s = createSwiss(mkParticipants(4));
-    s = generateNextRound(s); // R1-M1 : p1 (seed 1) vs p3 (seed 3)
-    s = recordResult(s, 'R1-M1', { home: 7, away: 13 }); // p3 bat p1 → surprise
-    s = recordResult(s, 'R1-M2', { home: 13, away: 9 }); // p2 bat p4 (attendu)
+  it('signale une surprise quand l’écart de seed est marqué (≥ 3), pas pour des seeds voisins', () => {
+    let s = createSwiss(mkParticipants(8));
+    s = generateNextRound(s); // R1 (pli) : p1 vs p5, p2 vs p6, p3 vs p7, p4 vs p8
+    s = recordResult(s, 'R1-M1', { home: 7, away: 13 }); // p5 bat p1 → écart 4, surprise
+    s = recordResult(s, 'R1-M2', { home: 13, away: 9 }); // favoris attendus
+    s = recordResult(s, 'R1-M3', { home: 13, away: 9 });
+    s = recordResult(s, 'R1-M4', { home: 13, away: 9 });
 
     const out = text(roundRecap(wrap(s), { now: '11:30' }));
     expect(out).toContain('Surprise');
-    expect(out).toContain('Team 3');
+    expect(out).toContain('Team 5');
+  });
+
+  it('n’affiche pas de surprise pour un écart de seed faible (seeds voisins)', () => {
+    // p2 (seed 2) bat p1 (seed 1) : écart 1 → pas une surprise.
+    const base = createSwiss(mkParticipants(4));
+    const s: SwissState = {
+      ...base,
+      matches: [
+        { id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: { home: 7, away: 13 } },
+        { id: 'R1-M2', round: 1, home: 'p3', away: 'p4', score: { home: 13, away: 9 } },
+      ],
+      records: {
+        p1: { wins: 0, losses: 1, opponents: ['p2'], hadBye: false, forfeited: false },
+        p2: { wins: 1, losses: 0, opponents: ['p1'], hadBye: false, forfeited: false },
+        p3: { wins: 1, losses: 0, opponents: ['p4'], hadBye: false, forfeited: false },
+        p4: { wins: 0, losses: 1, opponents: ['p3'], hadBye: false, forfeited: false },
+      },
+    };
+    const out = text(roundRecap(wrap(s), { now: '11:30' }));
+    expect(out).not.toContain('Surprise');
   });
 
   it('met « à générer » quand la prochaine ronde n’est pas encore générée', () => {

@@ -25,6 +25,11 @@ export interface RecapOptions {
   setupMin?: number;
 }
 
+// On ne crie « surprise » qu'à partir d'un vrai écart de seed : des seeds
+// voisins représentent des forces quasi égales (parfois littéralement à égalité
+// de rang moyen), donc une victoire d'un rang ou deux n'a rien d'étonnant.
+const UPSET_SEED_GAP = 3;
+
 function addMinutes(hhmm: string, minutes: number): string {
   const [h, m] = hhmm.split(':').map(Number);
   const total = h * 60 + m + minutes;
@@ -75,8 +80,9 @@ function render(s: SwissState, round: number, nextTime: string): string {
     const homeWon = m.score!.home > m.score!.away;
     const winner = homeWon ? m.home : (m.away as ParticipantId);
     const loser = homeWon ? (m.away as ParticipantId) : m.home;
-    // Seed plus élevé = équipe moins bien classée. Si elle gagne, c'est une surprise.
-    if ((seeds.get(winner) ?? 0) > (seeds.get(loser) ?? 0)) {
+    // Seed plus élevé = équipe moins bien classée. Surprise seulement si l'écart
+    // de seed est marqué (cf. UPSET_SEED_GAP) — on ignore les seeds voisins.
+    if ((seeds.get(winner) ?? 0) - (seeds.get(loser) ?? 0) >= UPSET_SEED_GAP) {
       lines.push(`🔥 Surprise · Upset : ${nm(winner)} bat · beat ${nm(loser)}`);
     }
   }
