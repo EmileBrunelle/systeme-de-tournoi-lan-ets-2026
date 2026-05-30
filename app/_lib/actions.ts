@@ -98,6 +98,16 @@ export async function recordSwissResult(id: string, matchId: string, home: numbe
   refresh();
 }
 
+/** Corrige un score suisse déjà saisi (manche courante seulement). */
+export async function amendSwissResult(id: string, matchId: string, home: number, away: number) {
+  const t = await getTournament(id);
+  const state = t && loadState(t);
+  if (!state || state.game !== 'valorant') throw new Error('État suisse invalide.');
+  const next = { ...state, swiss: swiss.amendResult(state.swiss, matchId, { home, away }) };
+  await saveState(id, next);
+  refresh();
+}
+
 /** Forfait d'une manche suisse : l'adversaire l'emporte, le concédant reste en lice. */
 export async function concedeSwissMatch(id: string, matchId: string, forfeitingId: string) {
   const t = await getTournament(id);
@@ -159,6 +169,10 @@ export async function submitStart(id: string, formData: FormData) {
 
 export async function submitSwissResult(id: string, matchId: string, formData: FormData) {
   await recordSwissResult(id, matchId, Number(formData.get('home')), Number(formData.get('away')));
+}
+
+export async function submitAmendSwissResult(id: string, matchId: string, formData: FormData) {
+  await amendSwissResult(id, matchId, Number(formData.get('home')), Number(formData.get('away')));
 }
 
 export async function submitPlayoffResult(id: string, matchId: string, formData: FormData) {

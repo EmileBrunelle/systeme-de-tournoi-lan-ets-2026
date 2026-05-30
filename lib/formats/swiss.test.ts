@@ -4,6 +4,7 @@ import {
   createSwiss,
   statusOf,
   recordResult,
+  amendResult,
   concedeMatch,
   withdraw,
   buchholz,
@@ -131,6 +132,71 @@ describe('recordResult', () => {
   it('lève une erreur si le match est introuvable', () => {
     const state = createSwiss(mkParticipants(2));
     expect(() => recordResult(state, 'inexistant', { home: 1, away: 0 })).toThrow();
+  });
+});
+
+describe('amendResult (corriger un score après coup)', () => {
+  function playedMatch(): SwissState {
+    let s = createSwiss(mkParticipants(2), { winsToQualify: 9, lossesToEliminate: 9 });
+    s = { ...s, matches: [{ id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: null }] };
+    return recordResult(s, 'R1-M1', { home: 13, away: 7 }); // p1 gagne
+  }
+
+  it('inverse le gagnant et ajuste victoires/défaites, sans toucher aux adversaires', () => {
+    const s = amendResult(playedMatch(), 'R1-M1', { home: 7, away: 13 }); // p2 gagne maintenant
+    expect(s.records['p1']).toMatchObject({ wins: 0, losses: 1, opponents: ['p2'] });
+    expect(s.records['p2']).toMatchObject({ wins: 1, losses: 0, opponents: ['p1'] });
+    expect(s.matches[0].score).toEqual({ home: 7, away: 13 });
+  });
+
+  it('corrige le pointage sans changer le gagnant (net nul sur le bilan)', () => {
+    const s = amendResult(playedMatch(), 'R1-M1', { home: 13, away: 5 });
+    expect(s.records['p1']).toMatchObject({ wins: 1, losses: 0 });
+    expect(s.records['p2']).toMatchObject({ wins: 0, losses: 1 });
+    expect(s.matches[0].score).toEqual({ home: 13, away: 5 });
+  });
+
+  it('ne mute pas l’état d’origine', () => {
+    const before = playedMatch();
+    amendResult(before, 'R1-M1', { home: 7, away: 13 });
+    expect(before.matches[0].score).toEqual({ home: 13, away: 7 });
+    expect(before.records['p1'].wins).toBe(1);
+  });
+
+  it('refuse un match d’une manche verrouillée (manche suivante déjà générée)', () => {
+    let s = createSwiss(mkParticipants(4), { winsToQualify: 9, lossesToEliminate: 9 });
+    s = generateNextRound(s); // R1
+    for (const m of s.matches.filter((mm) => mm.round === 1 && mm.away !== null)) {
+      s = recordResult(s, m.id, { home: 13, away: 7 });
+    }
+    s = generateNextRound(s); // R2 tirée → R1 verrouillée
+    const r1 = s.matches.find((m) => m.round === 1)!;
+    expect(() => amendResult(s, r1.id, { home: 7, away: 13 })).toThrow();
+  });
+
+  it('refuse un match pas encore joué, un bye, ou un forfait', () => {
+    const notPlayed: SwissState = {
+      ...createSwiss(mkParticipants(2)),
+      matches: [{ id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: null }],
+    };
+    expect(() => amendResult(notPlayed, 'R1-M1', { home: 13, away: 0 })).toThrow();
+
+    const bye: SwissState = {
+      ...createSwiss(mkParticipants(1)),
+      matches: [{ id: 'R1-BYE', round: 1, home: 'p1', away: null, score: { home: 1, away: 0 } }],
+    };
+    expect(() => amendResult(bye, 'R1-BYE', { home: 13, away: 0 })).toThrow();
+
+    const forfeited = concedeMatch(
+      { ...createSwiss(mkParticipants(2)), matches: [{ id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: null }] },
+      'R1-M1',
+      'p2',
+    );
+    expect(() => amendResult(forfeited, 'R1-M1', { home: 7, away: 13 })).toThrow();
+  });
+
+  it('lève une erreur si le match est introuvable', () => {
+    expect(() => amendResult(playedMatch(), 'inexistant', { home: 1, away: 0 })).toThrow();
   });
 });
 

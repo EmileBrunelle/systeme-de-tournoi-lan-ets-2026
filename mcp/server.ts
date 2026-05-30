@@ -93,6 +93,15 @@ const tools = [
       required: ['matchId', 'homeScore', 'awayScore'],
     },
   },
+  {
+    name: 'amend_swiss_result',
+    description: 'Corrige le score d’un match suisse déjà saisi (ex. inversé). Manche courante seulement, tant que la suivante n’est pas générée. matchId vient de swiss_round.',
+    inputSchema: {
+      type: 'object',
+      properties: { matchId: { type: 'string' }, homeScore: { type: 'number' }, awayScore: { type: 'number' } },
+      required: ['matchId', 'homeScore', 'awayScore'],
+    },
+  },
   { name: 'standings', description: 'Classement complet (suisse ou playoff selon la phase).', inputSchema: { type: 'object', properties: {} } },
   { name: 'start_playoff', description: 'Lance le playoff double-élimination (top N de la suisse). La suisse doit être finie.', inputSchema: { type: 'object', properties: {} } },
   { name: 'playoff_matches', description: 'Matchs jouables du playoff (id, équipes, bracket).', inputSchema: { type: 'object', properties: {} } },
@@ -189,6 +198,13 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<unk
       const next = { ...s, swiss: swiss.recordResult(s.swiss, String(args.matchId), { home: Number(args.homeScore), away: Number(args.awayScore) }) };
       await saveState(ctx.id, next);
       return { enregistré: args.matchId, score: `${args.homeScore}-${args.awayScore}`, suisseComplète: swiss.isComplete(next.swiss) };
+    }
+
+    case 'amend_swiss_result': {
+      const s = requireState(ctx.state);
+      const next = { ...s, swiss: swiss.amendResult(s.swiss, String(args.matchId), { home: Number(args.homeScore), away: Number(args.awayScore) }) };
+      await saveState(ctx.id, next);
+      return { corrigé: args.matchId, score: `${args.homeScore}-${args.awayScore}`, suisseComplète: swiss.isComplete(next.swiss) };
     }
 
     case 'standings': {

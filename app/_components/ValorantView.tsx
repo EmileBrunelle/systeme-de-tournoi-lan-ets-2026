@@ -1,4 +1,4 @@
-import { Trophy, Play, Flag } from 'lucide-react';
+import { Trophy, Play, Flag, Pencil } from 'lucide-react';
 import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
 import { lanEtsValorantSchedule, saturdayEndTime, sleepGapMinutes } from '@/lib/schedule/lan-ets';
@@ -11,6 +11,7 @@ import {
   generateSwissRound,
   resetTournament,
   startPlayoff,
+  submitAmendSwissResult,
   submitPlayoffResult,
   submitStart,
   submitSwissResult,
@@ -165,7 +166,24 @@ function SwissDashboard({ t, state }: { t: TournamentWithRoster; state: Valorant
                     m.forfeit ? (
                       <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-400">forfait</Badge>
                     ) : (
-                      <Badge variant="secondary" className="tabular-nums">{m.score.home}–{m.score.away}</Badge>
+                      <details className="group">
+                        <summary className="flex cursor-pointer list-none items-center">
+                          <Badge variant="secondary" className="tabular-nums">
+                            {m.score.home}–{m.score.away}
+                            <Pencil className="ml-1 size-3 opacity-50 group-open:opacity-100" />
+                          </Badge>
+                        </summary>
+                        <form
+                          action={submitAmendSwissResult.bind(null, t.id, m.id)}
+                          autoComplete="off"
+                          className="mt-2 flex items-center gap-1.5"
+                        >
+                          <Input type="number" name="home" min={0} required autoComplete="off" defaultValue={m.score.home} aria-label="Score domicile corrigé" className="h-9 w-16" />
+                          <span className="text-muted-foreground">–</span>
+                          <Input type="number" name="away" min={0} required autoComplete="off" defaultValue={m.score.away} aria-label="Score visiteur corrigé" className="h-9 w-16" />
+                          <Button type="submit" size="sm" variant="secondary">Corriger</Button>
+                        </form>
+                      </details>
                     )
                   ) : (
                     <>

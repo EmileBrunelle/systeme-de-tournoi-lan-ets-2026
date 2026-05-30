@@ -94,6 +94,50 @@ export function recordResult(
   return next;
 }
 
+/**
+ * Corrige le score d'un match DÉJÀ joué (ex. score saisi à l'envers). Contrairement
+ * à un nouvel enregistrement, on annule d'abord l'effet de l'ancien résultat sur les
+ * bilans, puis on applique le nouveau — la liste des adversaires affrontés ne change
+ * pas (les deux équipes se sont bien rencontrées).
+ *
+ * N'est permis que sur la MANCHE COURANTE et tant que la suivante n'est pas générée :
+ * une fois la manche suivante tirée, ses appariements dépendent de ce résultat, donc
+ * le corriger en douce casserait la cohérence. Le bye et le forfait ont leurs propres
+ * flux et ne sont pas éditables ici.
+ */
+export function amendResult(
+  state: SwissState,
+  matchId: string,
+  score: { home: number; away: number },
+): SwissState {
+  const match = state.matches.find((m) => m.id === matchId);
+  if (!match) throw new Error(`Match introuvable : ${matchId}`);
+  if (match.away === null) throw new Error(`Le match ${matchId} est un bye : pas de score à corriger.`);
+  if (match.score === null) throw new Error(`Le match ${matchId} n'est pas encore joué : enregistrez-le d'abord.`);
+  if (match.forfeit !== undefined) throw new Error(`Le match ${matchId} est un forfait : non éditable ici.`);
+  if (match.round !== currentRound(state))
+    throw new Error(`Le match ${matchId} appartient à une manche verrouillée (manche suivante déjà générée).`);
+
+  const next = cloneState(state);
+  const m = next.matches.find((mm) => mm.id === matchId)!;
+  const away = m.away as ParticipantId;
+
+  // Annule l'ancien résultat.
+  const oldWinner = m.score!.home > m.score!.away ? m.home : away;
+  const oldLoser = oldWinner === m.home ? away : m.home;
+  next.records[oldWinner].wins -= 1;
+  next.records[oldLoser].losses -= 1;
+
+  // Applique le nouveau.
+  m.score = { ...score };
+  const newWinner = score.home > score.away ? m.home : away;
+  const newLoser = newWinner === m.home ? away : m.home;
+  next.records[newWinner].wins += 1;
+  next.records[newLoser].losses += 1;
+
+  return next;
+}
+
 /** Score attribué au gagnant d'une manche perdue par forfait (Valorant : 13-0). */
 const FORFEIT_SCORE = 13;
 
