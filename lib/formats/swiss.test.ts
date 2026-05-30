@@ -266,6 +266,30 @@ describe('generateNextRound — ronde 1', () => {
   });
 });
 
+describe('generateNextRound — rondes suivantes (appariement par groupe de bilan)', () => {
+  it('apparie en pli (fort-vs-faible) à l’intérieur d’un groupe de bilan, pas en adjacent', () => {
+    // 8 équipes, seeds 1..8. Ronde 1 (pli) : 1v5, 2v6, 3v7, 4v8, le `home` (le plus
+    // fort) gagne → invaincus = seeds 1,2,3,4. En ronde 2, ce groupe de 4 invaincus
+    // doit être apparié en pli : 1v3 et 2v4. L’appariement adjacent (1v2, 3v4)
+    // forcerait les deux meilleures équipes à s’entre-éliminer dès la ronde 2.
+    let s = generateNextRound(createSwiss(mkParticipants(8))); // ronde 1
+    s = playRoundHomeWins(s);
+    s = generateNextRound(s); // ronde 2
+    const seedOf = Object.fromEntries(s.participants.map((p) => [p.id, p.seed]));
+    const r2 = s.matches.filter((m) => m.round === 2 && m.away !== null);
+    const oppSeedOf = (seed: number): number => {
+      const m = r2.find((mm) => seedOf[mm.home] === seed || seedOf[mm.away!] === seed)!;
+      return seedOf[m.home] === seed ? seedOf[m.away!] : seedOf[m.home];
+    };
+    // Groupe de tête (invaincus 1,2,3,4) apparié en pli :
+    expect(oppSeedOf(1)).toBe(3);
+    expect(oppSeedOf(2)).toBe(4);
+    // Groupe du bas (0-1 : seeds 5,6,7,8) également en pli :
+    expect(oppSeedOf(5)).toBe(7);
+    expect(oppSeedOf(6)).toBe(8);
+  });
+});
+
 describe('buchholz', () => {
   it('somme les victoires des adversaires affrontés', () => {
     let state = createSwiss(mkParticipants(3), { winsToQualify: 9, lossesToEliminate: 9 });

@@ -233,20 +233,41 @@ export function generateNextRound(state: SwissState): SwissState {
       });
     }
   } else {
-    // Rondes suivantes : appariement glouton par force comparable, anti-revanche.
-    const pool = [...active];
-    while (pool.length >= 2) {
-      const home = pool.shift()!;
-      let oppIdx = pool.findIndex((o) => !next.records[home.id].opponents.includes(o.id));
-      if (oppIdx === -1) oppIdx = 0; // revanche inévitable
-      const away = pool.splice(oppIdx, 1)[0];
-      next.matches.push({
-        id: `R${round}-M${++matchNo}`,
-        round,
-        home: home.id,
-        away: away.id,
-        score: null,
-      });
+    // Rondes suivantes : appariement en pli (fort-vs-faible) DANS chaque groupe de
+    // bilan, comme la ronde 1. On oppose la moitié haute du groupe à sa moitié
+    // basse plutôt que les équipes adjacentes : sans ça, les deux meilleures d'un
+    // même bilan s'affronteraient tout de suite et s'entre-élimineraient, ouvrant
+    // un parcours plus doux aux équipes de calibre moyen. Anti-revanche conservée.
+    // Un groupe de taille impaire laisse sa plus faible équipe en « reliquat » ;
+    // les reliquats (bilans voisins) sont ensuite appariés entre eux.
+    const winsOf = (p: Participant) => next.records[p.id].wins;
+    const takeOpponent = (home: Participant, pool: Participant[]): Participant => {
+      let idx = pool.findIndex((o) => !next.records[home.id].opponents.includes(o.id));
+      if (idx === -1) idx = 0; // revanche inévitable
+      return pool.splice(idx, 1)[0];
+    };
+    const addMatch = (home: Participant, away: Participant) => {
+      next.matches.push({ id: `R${round}-M${++matchNo}`, round, home: home.id, away: away.id, score: null });
+    };
+
+    // `active` est trié par force, donc les bilans sont contigus : on découpe en
+    // groupes de même nombre de victoires.
+    const leftovers: Participant[] = [];
+    let i = 0;
+    while (i < active.length) {
+      const w = winsOf(active[i]);
+      const bracket: Participant[] = [];
+      while (i < active.length && winsOf(active[i]) === w) bracket.push(active[i++]);
+      if (bracket.length % 2 === 1) leftovers.push(bracket.pop()!);
+      const bottom = bracket.slice(bracket.length / 2);
+      for (let k = 0; k < bracket.length / 2; k++) addMatch(bracket[k], takeOpponent(bracket[k], bottom));
+    }
+    // Reliquats impairs (toujours en nombre pair quand le total est pair) : appariés
+    // entre eux du plus fort au plus faible, en évitant les revanches.
+    leftovers.sort((a, b) => strengthCompare(next, a, b));
+    while (leftovers.length >= 2) {
+      const home = leftovers.shift()!;
+      addMatch(home, takeOpponent(home, leftovers));
     }
   }
 
