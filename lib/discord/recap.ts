@@ -1,17 +1,20 @@
 // lib/discord/recap.ts
 //
-// Récapitulatif de fin de manche : un seul message Discord bilingue, posté
-// quand une ronde suisse est jouée au complet. Réunit résultats, faits
-// saillants, classement à jour et la prochaine manche (appariements + heure
-// estimée). Fonction pure : l'heure réelle (`now`) est injectée, jamais lue de
-// l'horloge ici — donc testable et jamais périmée.
+// Récapitulatif de fin de manche : un seul message Discord compact, posté quand
+// une ronde suisse est jouée au complet. Réunit résultats, faits saillants,
+// classement à jour et la prochaine manche.
+//
+// Bilingue sans gonfler : les données (noms d'équipes, scores) sont neutres et
+// affichées UNE seule fois ; seuls les libellés sont bilingues (« FR · EN »).
+// Fonction pure : l'heure réelle (`now`) est injectée, jamais lue de l'horloge
+// ici — donc testable et jamais périmée.
 
 import type { ParticipantId } from '../domain/types';
 import * as swiss from '../formats/swiss';
 import type { SwissState } from '../formats/swiss';
 import type { ValorantState } from '../runtime/runner';
 import { splitForDiscord } from './split';
-import { bilingualChunks, type DiscordBlock } from './format';
+import type { DiscordBlock } from './format';
 
 export interface RecapOptions {
   /** Heure réelle « HH:MM » au moment du récap (horloge du navigateur/serveur). */
@@ -21,76 +24,6 @@ export interface RecapOptions {
   /** Minutes de battement avant la prochaine manche. Défaut 10. */
   setupMin?: number;
 }
-
-/** Libellés d'une langue. Les données (noms, scores) sont communes aux deux. */
-interface Lang {
-  flag: string;
-  recap: string;
-  manche: string;
-  done: string;
-  results: string;
-  highlights: string;
-  upset: string;
-  beat: string;
-  qualified: string;
-  eliminated: string;
-  closest: string;
-  standings: string;
-  tiebreak: string;
-  nextManche: string;
-  round: string;
-  toGenerate: string;
-  swissDone: string;
-  qualifiersForPlayoff: string;
-  bye: string;
-  forfeit: string;
-}
-
-const FR: Lang = {
-  flag: ':flag_fr:',
-  recap: 'Récap',
-  manche: 'Manche',
-  done: 'terminée',
-  results: 'Résultats',
-  highlights: 'Faits saillants',
-  upset: 'Surprise',
-  beat: 'bat',
-  qualified: 'Qualifiées',
-  eliminated: 'Éliminées',
-  closest: 'Match le plus serré',
-  standings: 'Classement',
-  tiebreak: "bris d'égalité",
-  nextManche: 'Prochaine manche',
-  round: 'Ronde',
-  toGenerate: 'appariements à générer',
-  swissDone: 'Phase suisse terminée',
-  qualifiersForPlayoff: 'Qualifiés pour le playoff',
-  bye: 'bye',
-  forfeit: 'forfait',
-};
-
-const EN: Lang = {
-  flag: ':flag_gb:',
-  recap: 'Recap',
-  manche: 'Round',
-  done: 'complete',
-  results: 'Results',
-  highlights: 'Highlights',
-  upset: 'Upset',
-  beat: 'beat',
-  qualified: 'Qualified',
-  eliminated: 'Eliminated',
-  closest: 'Closest match',
-  standings: 'Standings',
-  tiebreak: 'tiebreaker',
-  nextManche: 'Next round',
-  round: 'Round',
-  toGenerate: 'pairings to be drawn',
-  swissDone: 'Swiss stage complete',
-  qualifiersForPlayoff: 'Qualified for playoffs',
-  bye: 'bye',
-  forfeit: 'forfeit',
-};
 
 function addMinutes(hhmm: string, minutes: number): string {
   const [h, m] = hhmm.split(':').map(Number);
@@ -110,19 +43,14 @@ export function roundRecap(state: ValorantState, opts: RecapOptions): DiscordBlo
   const round = swiss.lastCompleteRound(s);
   if (round === 0) return null;
 
-  const setupMin = opts.setupMin ?? 10;
-  const nextTime = addMinutes(opts.now, setupMin);
-
-  const fr = render(s, round, opts.now, nextTime, FR);
-  const en = render(s, round, opts.now, nextTime, EN);
-
+  const nextTime = addMinutes(opts.now, opts.setupMin ?? 10);
   return {
-    label: `${FR.recap} — ${FR.manche} ${round}`,
-    chunks: bilingualChunks(splitForDiscord(fr), splitForDiscord(en)),
+    label: `Récap — Manche ${round}`,
+    chunks: splitForDiscord(render(s, round, nextTime)),
   };
 }
 
-function render(s: SwissState, round: number, now: string, nextTime: string, L: Lang): string {
+function render(s: SwissState, round: number, nextTime: string): string {
   const names = new Map(s.participants.map((p) => [p.id, p.name]));
   const seeds = new Map(s.participants.map((p) => [p.id, p.seed]));
   const nm = (id: ParticipantId) => names.get(id) ?? id;
@@ -131,30 +59,25 @@ function render(s: SwissState, round: number, now: string, nextTime: string, L: 
   const realPlayed = roundMatches.filter((m) => m.away !== null && m.score !== null && !m.forfeit);
 
   const lines: string[] = [];
-  lines.push(`**${L.flag} 📋 ${L.recap} — ${L.manche} ${round} ${L.done}**`);
+  lines.push(`:flag_fr::flag_gb: 📋 **Manche ${round} terminée · Round ${round} complete**`);
 
   // ── Résultats ──
-  lines.push('', `__${L.results}__`);
+  lines.push('', '__Résultats · Results__');
   for (const m of roundMatches) {
     const home = nm(m.home);
-    if (m.away === null) {
-      lines.push(`\`${home}\` — ${L.bye}`);
-    } else if (m.forfeit) {
-      lines.push(`\`${home}\` vs \`${nm(m.away)}\` → ${L.forfeit}`);
-    } else {
-      lines.push(`\`${home}\` ${m.score!.home}–${m.score!.away} \`${nm(m.away)}\``);
-    }
+    if (m.away === null) lines.push(`${home} — *bye*`);
+    else if (m.forfeit) lines.push(`${home} vs ${nm(m.away)} — *forfait · forfeit*`);
+    else lines.push(`${home} \`${m.score!.home}–${m.score!.away}\` ${nm(m.away)}`);
   }
 
-  // ── Faits saillants ──
-  const highlights: string[] = [];
+  // ── Faits saillants (uniquement ce qui est notable) ──
   for (const m of realPlayed) {
     const homeWon = m.score!.home > m.score!.away;
     const winner = homeWon ? m.home : (m.away as ParticipantId);
     const loser = homeWon ? (m.away as ParticipantId) : m.home;
     // Seed plus élevé = équipe moins bien classée. Si elle gagne, c'est une surprise.
     if ((seeds.get(winner) ?? 0) > (seeds.get(loser) ?? 0)) {
-      highlights.push(`🔥 ${L.upset} : \`${nm(winner)}\` ${L.beat} \`${nm(loser)}\``);
+      lines.push(`🔥 Surprise · Upset : ${nm(winner)} bat · beat ${nm(loser)}`);
     }
   }
 
@@ -165,8 +88,8 @@ function render(s: SwissState, round: number, now: string, nextTime: string, L: 
   }
   const quals = [...playedIds].filter((id) => swiss.statusOf(s, id) === 'qualified').map(nm);
   const elims = [...playedIds].filter((id) => swiss.statusOf(s, id) === 'eliminated').map(nm);
-  if (quals.length > 0) highlights.push(`✅ ${L.qualified} : ${quals.join(', ')}`);
-  if (elims.length > 0) highlights.push(`❌ ${L.eliminated} : ${elims.join(', ')}`);
+  if (quals.length > 0) lines.push(`✅ Qualifiées · Qualified : ${quals.join(' · ')}`);
+  if (elims.length > 0) lines.push(`❌ Éliminées · Eliminated : ${elims.join(' · ')}`);
 
   if (realPlayed.length > 0) {
     const closest = [...realPlayed].sort((a, b) => {
@@ -177,41 +100,46 @@ function render(s: SwissState, round: number, now: string, nextTime: string, L: 
       const sb = (seeds.get(b.home) ?? 0) + (seeds.get(b.away as ParticipantId) ?? 0);
       return sa - sb;
     })[0];
-    highlights.push(
-      `🎬 ${L.closest} : \`${nm(closest.home)}\` ${closest.score!.home}–${closest.score!.away} \`${nm(closest.away as ParticipantId)}\``,
+    lines.push(
+      `🎬 Plus serré · Closest : ${nm(closest.home)} \`${closest.score!.home}–${closest.score!.away}\` ${nm(closest.away as ParticipantId)}`,
     );
   }
 
-  if (highlights.length > 0) {
-    lines.push('', `__${L.highlights}__`, ...highlights);
+  // ── Classement, groupé par bilan (compact) ──
+  lines.push('', '__Classement · Standings__');
+  const board = swiss.standings(s);
+  let bucketKey = '';
+  let bucket: string[] = [];
+  const flush = () => {
+    if (bucket.length > 0) lines.push(`\`${bucketKey}\` ${bucket.join(' · ')}`);
+  };
+  for (const r of board) {
+    const key = `${r.wins}-${r.losses}`;
+    if (key !== bucketKey) {
+      flush();
+      bucketKey = key;
+      bucket = [];
+    }
+    bucket.push(r.name);
   }
-
-  // ── Classement ──
-  lines.push('', `__${L.standings}__`);
-  for (const r of swiss.standings(s)) {
-    lines.push(`\`${r.rank}.\` **${r.name}** — ${r.wins}-${r.losses} (${L.tiebreak} ${r.tiebreak})`);
-  }
+  flush();
 
   // ── Prochaine manche ──
   lines.push('');
   if (swiss.isComplete(s)) {
     const quali = swiss.qualifiers(s).map(nm);
-    lines.push(`**🏆 ${L.swissDone}**`, `${L.qualifiersForPlayoff} : ${quali.join(', ')}`);
+    lines.push('🏆 **Phase suisse terminée · Swiss stage complete**');
+    lines.push(`Qualifiées · Qualified : ${quali.join(' · ')}`);
   } else {
     const cur = swiss.currentRound(s);
     if (cur > round) {
       // Prochaine ronde déjà tirée : on montre les appariements.
-      lines.push(`**${L.nextManche} — ${L.round} ${cur} (≈ ${nextTime})**`);
-      const next = s.matches.filter((m) => m.round === cur);
-      next.forEach((m, i) => {
-        lines.push(
-          m.away === null
-            ? `\`${i + 1}.\` ${nm(m.home)} — ${L.bye}`
-            : `\`${i + 1}.\` ${nm(m.home)} **vs** ${nm(m.away)}`,
-        );
-      });
+      lines.push(`__Prochaine · Next — Ronde ${cur} (≈ ${nextTime})__`);
+      for (const m of s.matches.filter((m) => m.round === cur)) {
+        lines.push(m.away === null ? `${nm(m.home)} — *bye*` : `${nm(m.home)} vs ${nm(m.away)}`);
+      }
     } else {
-      lines.push(`**${L.nextManche} — ${L.round} ${round + 1} (≈ ${nextTime})** — ${L.toGenerate}`);
+      lines.push(`__Prochaine · Next — Ronde ${round + 1} (≈ ${nextTime})__ — *à générer · to be drawn*`);
     }
   }
 

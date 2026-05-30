@@ -44,7 +44,7 @@ describe('roundRecap', () => {
     expect(block!.label).toContain('Manche 1');
     expect(out).toContain('Classement');
     expect(out).toContain('13–7');
-    expect(out).toContain('Prochaine manche — Ronde 2');
+    expect(out).toContain('Prochaine · Next — Ronde 2');
     // heure ancrée sur l'horloge réelle : 11:30 + 10 min de setup
     expect(out).toContain('11:40');
   });
@@ -87,7 +87,7 @@ describe('roundRecap', () => {
     s = recordResult(s, 'R1-M1', { home: 13, away: 7 }); // écart 6
     s = recordResult(s, 'R1-M2', { home: 13, away: 11 }); // écart 2 → le plus serré
     const out = text(roundRecap(wrap(s), { now: '11:30' }));
-    expect(out).toContain('plus serré');
+    expect(out).toContain('Plus serré');
     expect(out).toContain('13–11');
   });
 });
