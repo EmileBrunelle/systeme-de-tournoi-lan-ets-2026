@@ -50,7 +50,7 @@ function swissTiles(state: ValorantState): Vital[] {
   const eliminated = board.filter((r) => r.status === 'eliminated').length;
   const active = board.filter((r) => r.status === 'active').length;
   // Tant que personne n'a gagné de match, le classement n'est pas significatif
-  // (tri par seed aléatoire) : pas de meneur arbitraire.
+  // (simple ordre de seed) : pas de meneur tant qu'aucun match n'est joué.
   const leader = board[0]?.wins ? board[0] : null;
 
   return [

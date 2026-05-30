@@ -9,6 +9,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "import": "tsx --env-file=.env scripts/import.ts",
+    "reseed": "tsx --env-file=.env scripts/reseed.ts",
     "db:push": "prisma db push",
     "test": "vitest run",
     "test:watch": "vitest"

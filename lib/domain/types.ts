@@ -7,7 +7,7 @@ export type ParticipantId = string;
 export interface Participant {
   id: ParticipantId;
   name: string;
-  /** Seed initial (1 = premier slot). Tiré au hasard pour Valorant. */
+  /** Seed initial (1 = premier slot). Seedé par force (rangMoyen) pour Valorant. */
   seed: number;
 }
 

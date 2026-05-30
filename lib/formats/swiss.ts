@@ -192,21 +192,36 @@ export function generateNextRound(state: SwissState): SwissState {
     active.splice(idx, 1);
   }
 
-  // Appariement glouton anti-revanche
   let matchNo = 0;
-  const pool = [...active];
-  while (pool.length >= 2) {
-    const home = pool.shift()!;
-    let oppIdx = pool.findIndex((o) => !next.records[home.id].opponents.includes(o.id));
-    if (oppIdx === -1) oppIdx = 0; // revanche inévitable
-    const away = pool.splice(oppIdx, 1)[0];
-    next.matches.push({
-      id: `R${round}-M${++matchNo}`,
-      round,
-      home: home.id,
-      away: away.id,
-      score: null,
-    });
+  if (round === 1) {
+    // Ronde 1 : pli moitié-haute vs moitié-basse (groupe fort vs groupe faible).
+    // `active` est trié par force (seed croissant) ; on oppose seed i à seed i+n/2.
+    const half = active.length / 2;
+    for (let i = 0; i < half; i++) {
+      next.matches.push({
+        id: `R${round}-M${++matchNo}`,
+        round,
+        home: active[i].id,
+        away: active[i + half].id,
+        score: null,
+      });
+    }
+  } else {
+    // Rondes suivantes : appariement glouton par force comparable, anti-revanche.
+    const pool = [...active];
+    while (pool.length >= 2) {
+      const home = pool.shift()!;
+      let oppIdx = pool.findIndex((o) => !next.records[home.id].opponents.includes(o.id));
+      if (oppIdx === -1) oppIdx = 0; // revanche inévitable
+      const away = pool.splice(oppIdx, 1)[0];
+      next.matches.push({
+        id: `R${round}-M${++matchNo}`,
+        round,
+        home: home.id,
+        away: away.id,
+        score: null,
+      });
+    }
   }
 
   // Bye résolu immédiatement

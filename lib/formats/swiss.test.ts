@@ -185,6 +185,30 @@ describe('generateNextRound — ronde 1', () => {
     expect(byes[0].score).toEqual({ home: 1, away: 0 }); // résolu
     expect(state.records[byeTeam]).toMatchObject({ wins: 1, hadBye: true });
   });
+
+  it('apparie moitié-haute vs moitié-basse (pli par seed) : seed i vs seed i+n/2', () => {
+    // 8 équipes seed 1..8 (1 = plus forte). Le pli oppose le groupe fort
+    // (seeds 1-4) au groupe faible (seeds 5-8) : 1v5, 2v6, 3v7, 4v8.
+    const state = generateNextRound(createSwiss(mkParticipants(8)));
+    const seedOf = Object.fromEntries(state.participants.map((p) => [p.id, p.seed]));
+    const r1 = state.matches.filter((m) => m.round === 1 && m.away !== null);
+    expect(r1).toHaveLength(4);
+    for (const m of r1) {
+      expect(seedOf[m.away!] - seedOf[m.home]).toBe(4);
+    }
+  });
+
+  it('le bye (nombre impair) va à la plus faible équipe avant le pli', () => {
+    // 7 équipes seed 1..7 : seed 7 (plus faible) prend le bye, puis pli 1v4, 2v5, 3v6.
+    const state = generateNextRound(createSwiss(mkParticipants(7)));
+    const bye = state.matches.find((m) => m.round === 1 && m.away === null);
+    expect(bye?.home).toBe('p7');
+    const seedOf = Object.fromEntries(state.participants.map((p) => [p.id, p.seed]));
+    const played = state.matches.filter((m) => m.round === 1 && m.away !== null);
+    for (const m of played) {
+      expect(seedOf[m.away!] - seedOf[m.home]).toBe(3);
+    }
+  });
 });
 
 describe('buchholz', () => {

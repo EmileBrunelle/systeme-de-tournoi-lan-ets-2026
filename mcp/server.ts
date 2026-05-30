@@ -16,6 +16,7 @@ import * as swiss from '../lib/formats/swiss';
 import * as de from '../lib/formats/double-elimination';
 import * as runner from '../lib/runtime/runner';
 import { lanEtsValorantSchedule, saturdayEndTime, sleepGapMinutes } from '../lib/schedule/lan-ets';
+import { seedByStrength } from '../lib/valorant/seeding';
 
 const prisma = new PrismaClient();
 
@@ -51,15 +52,6 @@ function slotName(state: runner.ValorantState, s: de.DESlot): string {
   return s.kind === 'bye' ? 'bye' : 'à venir';
 }
 
-function shuffled<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 // ─── Définition des outils ─────────────────────────────────────────────────
 
 const tools = [
@@ -76,7 +68,7 @@ const tools = [
   },
   {
     name: 'start_swiss',
-    description: 'Démarre la phase suisse (seeding aléatoire) avec les équipes non retirées.',
+    description: 'Démarre la phase suisse (seedé par force, rangMoyen) avec les équipes non retirées.',
     inputSchema: { type: 'object', properties: { playoffSize: { type: 'number', description: 'Qualifiés au playoff (défaut 8)' } } },
   },
   { name: 'swiss_round', description: 'Appariements de la ronde suisse courante (id, équipes, score).', inputSchema: { type: 'object', properties: {} } },
@@ -148,7 +140,7 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<unk
       if (ctx.state) throw new Error('Déjà démarré.');
       const entrants = ctx.teams.filter((t) => t.presence !== 'withdrawn');
       if (entrants.length < 2) throw new Error('Au moins 2 équipes non retirées requises.');
-      const participants: Participant[] = shuffled(entrants).map((t, i) => ({ id: t.id, name: t.name, seed: i + 1 }));
+      const participants: Participant[] = seedByStrength(entrants);
       const size = typeof args.playoffSize === 'number' ? args.playoffSize : runner.DEFAULT_PLAYOFF_SIZE;
       const state = runner.startValorant(participants, size);
       await saveState(ctx.id, state);

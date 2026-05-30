@@ -6,6 +6,7 @@ import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
 import * as runner from '@/lib/runtime/runner';
 import { averageRank } from '@/lib/valorant/rank';
+import { seedByStrength } from '@/lib/valorant/seeding';
 import { prisma } from './db';
 import { getTournament, loadState, saveState } from './repo';
 
@@ -34,22 +35,12 @@ async function recomputeAvgRank(teamId: string) {
   await prisma.team.update({ where: { id: teamId }, data: { avgRank } });
 }
 
-/** Mélange Fisher-Yates : seeding aléatoire (demandé pour Valorant). */
-function shuffled<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-/** Construit les participants Valorant (seed aléatoire) à partir des équipes présentes. */
+/** Construit les participants Valorant (seedés par force) à partir des équipes présentes. */
 async function rosterParticipants(id: string): Promise<Participant[]> {
   const t = await getTournament(id);
   if (!t) throw new Error('Tournoi introuvable.');
-  const entrants = t.teams.filter((x) => x.presence !== 'withdrawn').map((x) => ({ id: x.id, name: x.name }));
-  return shuffled(entrants).map((p, i) => ({ id: p.id, name: p.name, seed: i + 1 }));
+  const entrants = t.teams.filter((x) => x.presence !== 'withdrawn');
+  return seedByStrength(entrants.map((x) => ({ id: x.id, name: x.name, avgRank: x.avgRank })));
 }
 
 const PRESENCE_CYCLE: Record<string, string> = {

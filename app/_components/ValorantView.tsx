@@ -73,8 +73,9 @@ function Setup({ t }: { t: TournamentWithRoster }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Le seeding est aléatoire. Les équipes « retirées » sont exclues. Une fois démarré, la
-            structure des équipes est verrouillée.
+            Le seeding suit la force des équipes (rangMoyen) : la ronde 1 oppose le groupe fort au
+            groupe faible. Les équipes « retirées » sont exclues. Une fois démarré, la structure des
+            équipes est verrouillée.
           </p>
           <form action={submitStart.bind(null, t.id)} className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm">
@@ -195,7 +196,7 @@ function statusBadge(status: string) {
 
 function SwissStandings({ tournamentId, state }: { tournamentId: string; state: ValorantState['swiss'] }) {
   const board = swiss.standings(state);
-  // Aucun match joué → le classement n'est pas significatif (tri par seed aléatoire).
+  // Aucun match joué → le classement n'est pas significatif (simple ordre de seed).
   // On le présente alors par ordre alphabétique, sans rang, avec une note.
   const ranked = board.some((r) => r.wins > 0 || r.losses > 0);
   const rows = ranked ? board : [...board].sort((a, b) => a.name.localeCompare(b.name));
@@ -280,7 +281,7 @@ function LanEtsSchedule() {
       </CardHeader>
       <CardContent>
         <p className="mb-3 text-sm text-muted-foreground">
-          Samedi : suisse + playoff en BO1 (départ 9h30, lousse 15 min/ronde, dîner & souper).
+          Samedi : suisse + playoff en BO1 (départ 10h, lousse 15 min/ronde, dîner & souper).
           Grande finale dimanche 8h sur le stream, en BO3.
         </p>
         <Table>

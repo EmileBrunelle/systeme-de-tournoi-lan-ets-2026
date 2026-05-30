@@ -1,17 +1,29 @@
 // lib/valorant/broadcast.test.ts
 import { describe, expect, it } from 'vitest';
-import { createSwiss, generateNextRound, recordResult } from '../formats/swiss';
+import { createSwiss, recordResult } from '../formats/swiss';
+import type { SwissState } from '../formats/swiss';
 import type { Participant } from '../domain/types';
 import { suggestBroadcast } from './broadcast';
 
-/** 6 équipes, seeds 1..6. Ronde 1 apparie par seed : M1=(1,2), M2=(3,4), M3=(5,6). */
-function sixTeamsRound1() {
+/**
+ * 6 équipes, appariements de ronde 1 fixés explicitement (M1=(1,2), M2=(3,4),
+ * M3=(5,6)) pour tester la suggestion de diffusion indépendamment de l'algo
+ * d'appariement suisse.
+ */
+function sixTeamsRound1(): SwissState {
   const participants: Participant[] = Array.from({ length: 6 }, (_, i) => ({
     id: `t${i + 1}`,
     name: `Équipe ${i + 1}`,
     seed: i + 1,
   }));
-  return generateNextRound(createSwiss(participants));
+  return {
+    ...createSwiss(participants),
+    matches: [
+      { id: 'R1-M1', round: 1, home: 't1', away: 't2', score: null },
+      { id: 'R1-M2', round: 1, home: 't3', away: 't4', score: null },
+      { id: 'R1-M3', round: 1, home: 't5', away: 't6', score: null },
+    ],
+  };
 }
 
 describe('suggestBroadcast', () => {
