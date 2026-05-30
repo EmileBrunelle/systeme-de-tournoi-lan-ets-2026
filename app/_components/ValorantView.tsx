@@ -1,0 +1,313 @@
+import { Trophy, Play, ChevronRight } from 'lucide-react';
+import * as swiss from '@/lib/formats/swiss';
+import * as de from '@/lib/formats/double-elimination';
+import { estimateSchedule } from '@/lib/schedule/estimate';
+import type { ValorantState } from '@/lib/runtime/runner';
+import {
+  generateSwissRound,
+  resetTournament,
+  startPlayoff,
+  submitPlayoffResult,
+  submitStart,
+  submitSwissResult,
+} from '../_lib/actions';
+import { discordBlocks } from '../_lib/discord-views';
+import DiscordPanel from './DiscordPanel';
+import TeamManager from './TeamManager';
+import ConfirmDialog from './ConfirmDialog';
+import type { TournamentWithRoster } from '../_lib/repo';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+
+export default function ValorantView({
+  t,
+  state,
+}: {
+  t: TournamentWithRoster;
+  state: ValorantState | null;
+}) {
+  if (!state) return <Setup t={t} />;
+  return (
+    <div className="space-y-6">
+      {state.phase === 'swiss' ? (
+        <SwissSection t={t} state={state} />
+      ) : (
+        <PlayoffSection t={t} state={state} />
+      )}
+      <DiscordPanel blocks={discordBlocks(state)} />
+      <DangerZone id={t.id} />
+    </div>
+  );
+}
+
+// ─── Setup (roster + démarrage) ──────────────────────────────────────────────
+
+function Setup({ t }: { t: TournamentWithRoster }) {
+  const entrants = t.teams.filter((x) => x.presence !== 'withdrawn');
+  return (
+    <div className="space-y-6">
+      <TeamManager t={t} locked={false} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Démarrage</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Le seeding est aléatoire. Les équipes « retirées » sont exclues. Une fois démarré, la
+            structure des équipes est verrouillée.
+          </p>
+          <form action={submitStart.bind(null, t.id)} className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              Qualifiés au playoff :
+              <Input type="number" name="playoffSize" defaultValue={8} min={2} max={entrants.length || 8} className="h-9 w-20" />
+            </label>
+            <Button type="submit" disabled={entrants.length < 2}>
+              <Play className="size-4" /> Démarrer la phase suisse ({entrants.length} équipes)
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Phase suisse ────────────────────────────────────────────────────────────
+
+function SwissSection({ t, state }: { t: TournamentWithRoster; state: ValorantState }) {
+  const s = state.swiss;
+  const names = new Map(s.participants.map((p) => [p.id, p.name]));
+  const nm = (id: string | null) => (id ? (names.get(id) ?? id) : null);
+  const round = swiss.currentRound(s);
+  const hasUnplayed = s.matches.some((m) => m.away !== null && m.score === null);
+  const complete = swiss.isComplete(s);
+  const current = s.matches.filter((m) => m.round === round);
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle>Phase suisse{round > 0 && ` — Ronde ${round}`}</CardTitle>
+          <form action={generateSwissRound.bind(null, t.id)}>
+            <Button type="submit" disabled={hasUnplayed || complete}>
+              {round === 0 ? 'Générer la ronde 1' : 'Générer la ronde suivante'}
+            </Button>
+          </form>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {round === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune ronde générée.</p>
+          ) : (
+            current.map((m) => (
+              <div key={m.id} className="flex flex-wrap items-center gap-3 border-b border-border py-2.5 last:border-0">
+                <span className="min-w-[150px] font-medium">{nm(m.home)}</span>
+                {m.away === null ? (
+                  <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">bye — victoire auto</Badge>
+                ) : (
+                  <>
+                    <span className="text-sm text-muted-foreground">vs</span>
+                    <span className="min-w-[150px] font-medium">{nm(m.away)}</span>
+                    {m.score ? (
+                      <Badge variant="secondary" className="tabular-nums">{m.score.home}–{m.score.away}</Badge>
+                    ) : (
+                      <form action={submitSwissResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
+                        <Input type="number" name="home" min={0} required aria-label="Score domicile" className="h-9 w-16" />
+                        <span className="text-muted-foreground">–</span>
+                        <Input type="number" name="away" min={0} required aria-label="Score visiteur" className="h-9 w-16" />
+                        <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
+                      </form>
+                    )}
+                  </>
+                )}
+              </div>
+            ))
+          )}
+          {complete && (
+            <form action={startPlayoff.bind(null, t.id)} className="pt-3">
+              <Button type="submit">
+                <Trophy className="size-4" /> Démarrer le playoff (top {state.playoffSize})
+              </Button>
+            </form>
+          )}
+        </CardContent>
+      </Card>
+
+      <SwissStandings state={s} />
+      <ScheduleEstimate state={s} />
+    </div>
+  );
+}
+
+function statusBadge(status: string) {
+  if (status === 'qualified') return <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">Qualifié</Badge>;
+  if (status === 'eliminated') return <Badge className="border-red-500/40 bg-red-500/10 text-red-400">Éliminé</Badge>;
+  return <Badge variant="outline" className="text-muted-foreground">En lice</Badge>;
+}
+
+function SwissStandings({ state }: { state: ValorantState['swiss'] }) {
+  const board = swiss.standings(state);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Classement</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">#</TableHead>
+              <TableHead>Équipe</TableHead>
+              <TableHead>V-D</TableHead>
+              <TableHead>Buchholz</TableHead>
+              <TableHead>Statut</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {board.map((r) => (
+              <TableRow key={r.participantId}>
+                <TableCell className="text-muted-foreground">{r.rank}</TableCell>
+                <TableCell className="font-medium">{r.name}</TableCell>
+                <TableCell className="tabular-nums">{r.wins}-{r.losses}</TableCell>
+                <TableCell className="tabular-nums text-muted-foreground">{r.tiebreak}</TableCell>
+                <TableCell>{statusBadge(r.status)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ScheduleEstimate({ state }: { state: ValorantState['swiss'] }) {
+  const round = swiss.currentRound(state);
+  if (round === 0) return null;
+  const counts: number[] = [];
+  for (let r = 1; r <= round; r++) {
+    counts.push(state.matches.filter((m) => m.round === r && m.away !== null).length);
+  }
+  const sched = estimateSchedule(counts);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Horaire estimé</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-3 text-sm text-muted-foreground">Hypothèse : 90 postes BYOC, 10 joueurs/match, 45 min/match.</p>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Ronde</TableHead><TableHead>Jour</TableHead><TableHead>Début</TableHead>
+              <TableHead>Fin</TableHead><TableHead>Matchs</TableHead><TableHead>Vagues</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sched.map((r) => (
+              <TableRow key={r.round}>
+                <TableCell>{r.round}</TableCell>
+                <TableCell>J{r.day}</TableCell>
+                <TableCell className="tabular-nums">{r.start}</TableCell>
+                <TableCell className="tabular-nums">{r.end}</TableCell>
+                <TableCell>{r.matches}</TableCell>
+                <TableCell>{r.waves}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Playoff (double-élimination) ────────────────────────────────────────────
+
+const BRACKET_LABEL: Record<string, string> = { WB: 'Winner', LB: 'Loser', GF: 'Grande finale' };
+
+function PlayoffSection({ t, state }: { t: TournamentWithRoster; state: ValorantState }) {
+  const s = state.playoff!;
+  const names = new Map(s.participants.map((p) => [p.id, p.name]));
+  const slot = (x: de.DESlot) =>
+    x.kind === 'player' ? (names.get(x.id) ?? x.id) : x.kind === 'bye' ? 'bye' : 'à venir';
+  const playable = de.playableMatches(s);
+  const champ = de.champion(s);
+  const board = de.standings(s);
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Playoff — Double élimination</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {champ && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-lg font-bold text-amber-400">
+              <Trophy className="size-5" /> Champion : {names.get(champ) ?? champ}
+            </div>
+          )}
+          {playable.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{champ ? 'Tournoi terminé.' : 'Aucun match jouable pour le moment.'}</p>
+          ) : (
+            playable.map((m) => (
+              <div key={m.id} className="flex flex-wrap items-center gap-3 border-b border-border py-2.5 last:border-0">
+                <Badge variant="outline" className="text-muted-foreground">{BRACKET_LABEL[m.bracket] ?? m.bracket}</Badge>
+                <span className="min-w-[150px] font-medium">{slot(m.a)}</span>
+                <span className="text-sm text-muted-foreground">vs</span>
+                <span className="min-w-[150px] font-medium">{slot(m.b)}</span>
+                <form action={submitPlayoffResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
+                  <Input type="number" name="a" min={0} required aria-label="Score A" className="h-9 w-16" />
+                  <span className="text-muted-foreground">–</span>
+                  <Input type="number" name="b" min={0} required aria-label="Score B" className="h-9 w-16" />
+                  <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
+                </form>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Classement playoff</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow><TableHead className="w-10">#</TableHead><TableHead>Équipe</TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {board.map((r) => (
+                <TableRow key={r.participantId}>
+                  <TableCell className="text-muted-foreground">{r.rank}</TableCell>
+                  <TableCell className="font-medium">{r.name}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Zone dangereuse ─────────────────────────────────────────────────────────
+
+function DangerZone({ id }: { id: string }) {
+  return (
+    <Card className="border-destructive/30">
+      <CardHeader>
+        <CardTitle className="text-base text-muted-foreground">Zone dangereuse</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ConfirmDialog
+          action={resetTournament.bind(null, id)}
+          title="Réinitialiser le tournoi ?"
+          description="L'état du moteur (rondes, scores, playoff) sera effacé. Le roster des équipes est conservé."
+          confirmLabel="Réinitialiser"
+          triggerLabel="Réinitialiser le tournoi"
+        />
+      </CardContent>
+    </Card>
+  );
+}
