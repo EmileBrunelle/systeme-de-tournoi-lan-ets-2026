@@ -9,6 +9,7 @@ import {
   formatStandings,
   formatResults,
   formatSchedule,
+  bilingualChunks,
   type PairingRow,
   type ResultRow,
   type StandingRow,
@@ -45,10 +46,10 @@ function swissBlocks(s: swiss.SwissState): DiscordBlock[] {
     const pairings: PairingRow[] = inRound.map((m) => ({ a: nm(m.home)!, b: nm(m.away) }));
     blocks.push({
       label: `Appariements — Ronde ${round}`,
-      chunks: [
-        ...formatPairings(`${FR} Appariements — Ronde ${round}`, pairings, { byeLabel: 'bye (qualifié automatiquement)' }),
-        ...formatPairings(`${EN} Pairings — Round ${round}`, pairings, { byeLabel: 'bye (auto-qualified)' }),
-      ],
+      chunks: bilingualChunks(
+        formatPairings(`${FR} Appariements — Ronde ${round}`, pairings, { byeLabel: 'bye (qualifié automatiquement)' }),
+        formatPairings(`${EN} Pairings — Round ${round}`, pairings, { byeLabel: 'bye (auto-qualified)' }),
+      ),
     });
 
     const played = inRound.filter((m) => m.score !== null && m.away !== null);
@@ -60,13 +61,14 @@ function swissBlocks(s: swiss.SwissState): DiscordBlock[] {
           scoreA: m.score!.home,
           scoreB: m.score!.away,
           outcome: m.forfeit ? outcome : undefined,
+          forfeit: m.forfeit !== undefined,
         }));
       blocks.push({
         label: `Résultats — Ronde ${round}`,
-        chunks: [
-          ...formatResults(`${FR} Résultats — Ronde ${round}`, result('forfait')),
-          ...formatResults(`${EN} Results — Round ${round}`, result('forfeit')),
-        ],
+        chunks: bilingualChunks(
+          formatResults(`${FR} Résultats — Ronde ${round}`, result('forfait')),
+          formatResults(`${EN} Results — Round ${round}`, result('forfeit')),
+        ),
       });
     }
   }
@@ -76,10 +78,10 @@ function swissBlocks(s: swiss.SwissState): DiscordBlock[] {
     board.map((r) => ({ rank: r.rank, name: r.name, detail: `${r.wins}-${r.losses} (${label} ${r.tiebreak})` }));
   blocks.push({
     label: 'Classement — Phase suisse',
-    chunks: [
-      ...formatStandings(`${FR} Classement — Phase suisse`, standing("bris d'égalité")),
-      ...formatStandings(`${EN} Standings — Swiss stage`, standing('tiebreaker')),
-    ],
+    chunks: bilingualChunks(
+      formatStandings(`${FR} Classement — Phase suisse`, standing("bris d'égalité")),
+      formatStandings(`${EN} Standings — Swiss stage`, standing('tiebreaker')),
+    ),
   });
 
   // Horaire estimé d'après les rondes déjà générées.
@@ -88,19 +90,20 @@ function swissBlocks(s: swiss.SwissState): DiscordBlock[] {
     counts.push(s.matches.filter((m) => m.round === r && m.away !== null).length);
   }
   if (counts.length > 0) {
-    const sched = estimateSchedule(counts);
+    // Départ aligné sur le LAN ÉTS (9h30), comme l'horaire fixe de la console.
+    const sched = estimateSchedule(counts, { dayStart: '09:30', nextDayStart: '09:30' });
     blocks.push({
       label: 'Horaire estimé',
-      chunks: [
-        ...formatSchedule(
+      chunks: bilingualChunks(
+        formatSchedule(
           `${FR} Horaire estimé — Phase suisse`,
           sched.map((r) => ({ time: `J${r.day} ${r.start}`, label: `Ronde ${r.round} (${r.matches} matchs)` })),
         ),
-        ...formatSchedule(
+        formatSchedule(
           `${EN} Estimated schedule — Swiss stage`,
           sched.map((r) => ({ time: `D${r.day} ${r.start}`, label: `Round ${r.round} (${r.matches} matches)` })),
         ),
-      ],
+      ),
     });
   }
 
@@ -119,10 +122,10 @@ function deBlocks(s: de.DEState): DiscordBlock[] {
     const pairings: PairingRow[] = playable.map((m) => ({ a: slot(m.a), b: slot(m.b), note: m.bracket }));
     blocks.push({
       label: 'Matchs à jouer — Playoff',
-      chunks: [
-        ...formatPairings(`${FR} Playoff — Matchs à jouer`, pairings),
-        ...formatPairings(`${EN} Playoff — Matches to play`, pairings, { byeLabel: 'bye (auto-qualified)' }),
-      ],
+      chunks: bilingualChunks(
+        formatPairings(`${FR} Playoff — Matchs à jouer`, pairings),
+        formatPairings(`${EN} Playoff — Matches to play`, pairings, { byeLabel: 'bye (auto-qualified)' }),
+      ),
     });
   }
 
@@ -131,10 +134,10 @@ function deBlocks(s: de.DEState): DiscordBlock[] {
     board.map((r) => ({ rank: r.rank, name: r.name, detail: r.rank === 1 ? `🏆 ${champion}` : `${rank} ${r.rank}` }));
   blocks.push({
     label: 'Classement — Playoff',
-    chunks: [
-      ...formatStandings(`${FR} Classement — Playoff`, standing('Champion', 'Rang')),
-      ...formatStandings(`${EN} Standings — Playoff`, standing('Champion', 'Rank')),
-    ],
+    chunks: bilingualChunks(
+      formatStandings(`${FR} Classement — Playoff`, standing('Champion', 'Rang')),
+      formatStandings(`${EN} Standings — Playoff`, standing('Champion', 'Rank')),
+    ),
   });
   return blocks;
 }

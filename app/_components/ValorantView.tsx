@@ -3,6 +3,7 @@ import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
 import { lanEtsValorantSchedule, saturdayEndTime, sleepGapMinutes } from '@/lib/schedule/lan-ets';
 import { valorantVitals } from '@/lib/valorant/dashboard';
+import { suggestBroadcast } from '@/lib/valorant/broadcast';
 import type { ValorantState } from '@/lib/runtime/runner';
 import {
   concedePlayoffMatch,
@@ -102,6 +103,10 @@ function SwissDashboard({ t, state }: { t: TournamentWithRoster; state: Valorant
   const complete = swiss.isComplete(s);
   const current = s.matches.filter((m) => m.round === round);
 
+  // Match suggéré pour le stream : niveaux proches d'abord, fort calibre ensuite.
+  const rankById = Object.fromEntries(t.teams.map((team) => [team.id, team.avgRank]));
+  const onAir = suggestBroadcast(s, rankById).best;
+
   return (
     <div className="grid items-start gap-6 lg:grid-cols-3">
       <Card className="lg:col-span-2">
@@ -134,6 +139,14 @@ function SwissDashboard({ t, state }: { t: TournamentWithRoster; state: Valorant
                       <span className="text-sm text-muted-foreground">vs</span>
                       <span className="font-medium">{nm(m.away)}</span>
                     </>
+                  )}
+                  {onAir?.matchId === m.id && m.score === null && (
+                    <Badge
+                      variant="secondary"
+                      title="Niveaux proches, fort calibre — bon match pour le stream"
+                    >
+                      📺 à diffuser
+                    </Badge>
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">

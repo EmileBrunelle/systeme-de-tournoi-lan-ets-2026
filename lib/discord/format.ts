@@ -1,5 +1,5 @@
 // lib/discord/format.ts
-import { splitForDiscord } from './split';
+import { DISCORD_LIMIT, splitForDiscord } from './split';
 
 // ─── View-model interfaces ────────────────────────────────────────────────────
 
@@ -24,6 +24,8 @@ export interface ResultRow {
   scoreA: number;
   scoreB: number;
   outcome?: string;
+  /** Manche perdue par forfait : on n'affiche pas le score sentinelle (13–0). */
+  forfeit?: boolean;
 }
 
 /** A single schedule item. */
@@ -100,6 +102,8 @@ export function formatResults(
     let line: string;
     if (row.b === null) {
       line = `\`${row.a}\` — ${byeLabel}`;
+    } else if (row.forfeit) {
+      line = `\`${row.a}\` vs \`${row.b}\``;
     } else {
       line = `\`${row.a}\` ${row.scoreA}–${row.scoreB} \`${row.b}\``;
     }
@@ -120,4 +124,18 @@ export function formatResults(
 export function formatSchedule(title: string, items: ScheduleItem[]): string[] {
   const lines = items.map((item) => `\`${item.time}\` — ${item.label}`);
   return build(title, lines);
+}
+
+/**
+ * Compose les morceaux bilingues (section FR puis section EN) pour la copie.
+ * Si chaque langue tient en un seul morceau et que les deux réunis restent sous
+ * la limite Discord, renvoie un unique morceau — copiable d'un coup. Sinon, garde
+ * les morceaux séparés (tout le FR, puis tout l'EN).
+ */
+export function bilingualChunks(fr: string[], en: string[]): string[] {
+  if (fr.length === 1 && en.length === 1) {
+    const merged = `${fr[0]}\n\n${en[0]}`;
+    if (merged.length <= DISCORD_LIMIT) return [merged];
+  }
+  return [...fr, ...en];
 }

@@ -5,6 +5,7 @@ import {
   formatStandings,
   formatResults,
   formatSchedule,
+  bilingualChunks,
   type PairingRow,
   type StandingRow,
   type ResultRow,
@@ -150,6 +151,20 @@ describe('formatResults', () => {
     ];
     const joined = formatResults('Résultats', rows).join('');
     expect(joined).toContain('→ qualifié');
+    // un outcome simple n'efface pas le score
+    expect(joined).toContain('2–0');
+  });
+
+  it('masque le score sentinelle (13–0) pour un forfait', () => {
+    const rows: ResultRow[] = [
+      { a: 'Alpha', b: 'Beta', scoreA: 13, scoreB: 0, outcome: 'forfait', forfeit: true },
+    ];
+    const joined = formatResults('Résultats', rows).join('');
+    expect(joined).not.toContain('13');
+    expect(joined).not.toContain('–0');
+    expect(joined).toContain('Alpha');
+    expect(joined).toContain('Beta');
+    expect(joined).toContain('→ forfait');
   });
 
   it('returns string[] and all chunks <= 2000 chars', () => {
@@ -170,6 +185,36 @@ describe('formatResults', () => {
   it('empty rows still returns a chunk containing the title', () => {
     const chunks = formatResults('Résultats Vides', []);
     expect(chunks.join('')).toContain('**Résultats Vides**');
+  });
+});
+
+// ─── bilingualChunks ─────────────────────────────────────────────────────────
+
+describe('bilingualChunks', () => {
+  it('fusionne FR + EN en un seul morceau quand ça tient sous la limite', () => {
+    const out = bilingualChunks(['🇫🇷 Bonjour'], ['🇬🇧 Hello']);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toContain('🇫🇷 Bonjour');
+    expect(out[0]).toContain('🇬🇧 Hello');
+  });
+
+  it('garde FR et EN séparés quand le total dépasse la limite', () => {
+    const fr = ['🇫🇷 ' + 'a'.repeat(1200)];
+    const en = ['🇬🇧 ' + 'b'.repeat(1200)];
+    const out = bilingualChunks(fr, en);
+    expect(out).toEqual([fr[0], en[0]]);
+  });
+
+  it('ne fusionne pas si une langue est déjà découpée en plusieurs morceaux', () => {
+    const fr = ['🇫🇷 part 1', '🇫🇷 part 2'];
+    const en = ['🇬🇧 Hello'];
+    const out = bilingualChunks(fr, en);
+    expect(out).toEqual([...fr, ...en]);
+  });
+
+  it('le morceau fusionné reste sous la limite Discord', () => {
+    const out = bilingualChunks(['🇫🇷 court'], ['🇬🇧 short']);
+    expect(out[0].length).toBeLessThanOrEqual(DISCORD_LIMIT);
   });
 });
 
