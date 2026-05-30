@@ -1,22 +1,26 @@
-import { Trophy, Play } from 'lucide-react';
+import { Trophy, Play, Flag } from 'lucide-react';
 import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
 import { lanEtsValorantSchedule, saturdayEndTime, sleepGapMinutes } from '@/lib/schedule/lan-ets';
 import { valorantVitals } from '@/lib/valorant/dashboard';
 import type { ValorantState } from '@/lib/runtime/runner';
 import {
+  concedePlayoffMatch,
+  concedeSwissMatch,
   generateSwissRound,
   resetTournament,
   startPlayoff,
   submitPlayoffResult,
   submitStart,
   submitSwissResult,
+  withdrawTeam,
 } from '../_lib/actions';
 import { discordBlocks } from '../_lib/discord-views';
 import DiscordPanel from './DiscordPanel';
 import StatusTiles from './StatusTiles';
 import TeamManager from './TeamManager';
 import ConfirmDialog from './ConfirmDialog';
+import ForfeitDialog from './ForfeitDialog';
 import type { TournamentWithRoster } from '../_lib/repo';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
@@ -132,18 +136,31 @@ function SwissDashboard({ t, state }: { t: TournamentWithRoster; state: Valorant
                     </>
                   )}
                 </div>
-                <div className="shrink-0">
+                <div className="flex shrink-0 items-center gap-1.5">
                   {m.away === null ? (
                     <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">bye — victoire auto</Badge>
                   ) : m.score ? (
-                    <Badge variant="secondary" className="tabular-nums">{m.score.home}–{m.score.away}</Badge>
+                    m.forfeit ? (
+                      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-400">forfait</Badge>
+                    ) : (
+                      <Badge variant="secondary" className="tabular-nums">{m.score.home}–{m.score.away}</Badge>
+                    )
                   ) : (
-                    <form action={submitSwissResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
-                      <Input type="number" name="home" min={0} required aria-label="Score domicile" className="h-9 w-16" />
-                      <span className="text-muted-foreground">–</span>
-                      <Input type="number" name="away" min={0} required aria-label="Score visiteur" className="h-9 w-16" />
-                      <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
-                    </form>
+                    <>
+                      <form action={submitSwissResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
+                        <Input type="number" name="home" min={0} required aria-label="Score domicile" className="h-9 w-16" />
+                        <span className="text-muted-foreground">–</span>
+                        <Input type="number" name="away" min={0} required aria-label="Score visiteur" className="h-9 w-16" />
+                        <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
+                      </form>
+                      <ForfeitDialog
+                        title={`Forfait — ${nm(m.home)} vs ${nm(m.away)}`}
+                        options={[
+                          { label: `${nm(m.home)} déclare forfait`, action: concedeSwissMatch.bind(null, t.id, m.id, m.home) },
+                          { label: `${nm(m.away)} déclare forfait`, action: concedeSwissMatch.bind(null, t.id, m.id, m.away) },
+                        ]}
+                      />
+                    </>
                   )}
                 </div>
               </div>
@@ -152,7 +169,7 @@ function SwissDashboard({ t, state }: { t: TournamentWithRoster; state: Valorant
         </CardContent>
       </Card>
 
-      <SwissStandings state={s} />
+      <SwissStandings tournamentId={t.id} state={s} />
     </div>
   );
 }
@@ -163,14 +180,24 @@ function statusBadge(status: string) {
   return <Badge variant="outline" className="text-muted-foreground">En lice</Badge>;
 }
 
-function SwissStandings({ state }: { state: ValorantState['swiss'] }) {
+function SwissStandings({ tournamentId, state }: { tournamentId: string; state: ValorantState['swiss'] }) {
   const board = swiss.standings(state);
+  // Aucun match joué → le classement n'est pas significatif (tri par seed aléatoire).
+  // On le présente alors par ordre alphabétique, sans rang, avec une note.
+  const ranked = board.some((r) => r.wins > 0 || r.losses > 0);
+  const rows = ranked ? board : [...board].sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Classement</CardTitle>
       </CardHeader>
       <CardContent>
+        {!ranked && (
+          <p className="mb-3 text-sm text-muted-foreground">
+            Aucun match joué — classement à venir.
+          </p>
+        )}
         <Table>
           <TableHeader>
             <TableRow>
@@ -180,16 +207,30 @@ function SwissStandings({ state }: { state: ValorantState['swiss'] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {board.map((r) => (
+            {rows.map((r) => (
               <TableRow key={r.participantId}>
-                <TableCell className="text-muted-foreground tabular-nums">{r.rank}</TableCell>
+                <TableCell className="text-muted-foreground tabular-nums">{ranked ? r.rank : '—'}</TableCell>
                 <TableCell className="font-medium">
                   <span className="flex items-center gap-2">
                     <span className="truncate">{r.name}</span>
                     {r.status !== 'active' && statusBadge(r.status)}
                   </span>
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{r.wins}-{r.losses}</TableCell>
+                <TableCell className="text-right">
+                  <span className="flex items-center justify-end gap-1">
+                    <span className="tabular-nums">{r.wins}-{r.losses}</span>
+                    {r.status === 'active' && (
+                      <ConfirmDialog
+                        action={withdrawTeam.bind(null, tournamentId, r.participantId)}
+                        title={`Retirer ${r.name} du tournoi ?`}
+                        description="L’équipe est éliminée et ne sera plus appariée. Son match en cours, s’il y en a un, est accordé à l’adversaire. Irréversible sans réinitialiser."
+                        confirmLabel="Retirer l’équipe"
+                        icon={<Flag className="size-4" />}
+                        triggerAriaLabel={`Retirer ${r.name} du tournoi`}
+                      />
+                    )}
+                  </span>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -291,12 +332,21 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
                   <span className="text-sm text-muted-foreground">vs</span>
                   <span className="font-medium">{slot(m.b)}</span>
                 </div>
-                <form action={submitPlayoffResult.bind(null, t.id, m.id)} className="flex shrink-0 items-center gap-1.5">
-                  <Input type="number" name="a" min={0} required aria-label="Score A" className="h-9 w-16" />
-                  <span className="text-muted-foreground">–</span>
-                  <Input type="number" name="b" min={0} required aria-label="Score B" className="h-9 w-16" />
-                  <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
-                </form>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <form action={submitPlayoffResult.bind(null, t.id, m.id)} className="flex items-center gap-1.5">
+                    <Input type="number" name="a" min={0} required aria-label="Score A" className="h-9 w-16" />
+                    <span className="text-muted-foreground">–</span>
+                    <Input type="number" name="b" min={0} required aria-label="Score B" className="h-9 w-16" />
+                    <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
+                  </form>
+                  <ForfeitDialog
+                    title={`Forfait — ${slot(m.a)} vs ${slot(m.b)}`}
+                    options={[
+                      { label: `${slot(m.a)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'b') },
+                      { label: `${slot(m.b)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'a') },
+                    ]}
+                  />
+                </div>
               </div>
             ))
           )}

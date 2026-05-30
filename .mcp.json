@@ -4,9 +4,9 @@
       "command": "npx",
       "args": ["tsx", "--env-file=.env", "mcp/server.ts"]
     },
-    "playwright": {
+    "next-devtools": {
       "command": "npx",
-      "args": ["@playwright/mcp@latest"]
+      "args": ["-y", "next-devtools-mcp@latest"]
     }
   }
 }

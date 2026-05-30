@@ -56,6 +56,14 @@ describe('valorantVitals — phase suisse', () => {
     expect(q.hint).toMatch(/élimin/i);
   });
 
+  it('meneur : « Aucun » tant qu’aucun match n’est joué (pas de meneur arbitraire)', () => {
+    let state = runner.startValorant(makeParticipants(8), 4);
+    // Ronde 1 générée mais aucun résultat : tout le monde est 0-0.
+    state = { ...state, swiss: swiss.generateNextRound(state.swiss) };
+    const leader = tile(state, 'leader');
+    expect(leader.value).toBe('Aucun');
+  });
+
   it('meneur : équipe en tête du classement avec son bilan V-D', () => {
     let state = runner.startValorant(makeParticipants(8), 4);
     state = { ...state, swiss: swiss.generateNextRound(state.swiss) };

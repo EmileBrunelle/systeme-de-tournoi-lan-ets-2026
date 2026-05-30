@@ -9,6 +9,8 @@ export interface SwissMatch {
   away: ParticipantId | null;
   /** null = pas encore joué. */
   score: { home: number; away: number } | null;
+  /** Présent si la manche a été perdue par forfait : l'id de l'équipe qui a déclaré forfait. */
+  forfeit?: ParticipantId;
 }
 
 interface SwissRecord {
@@ -17,6 +19,8 @@ interface SwissRecord {
   /** Adversaires affrontés (byes exclus). */
   opponents: ParticipantId[];
   hadBye: boolean;
+  /** Équipe retirée du tournoi (forfait) : éliminée et plus jamais appariée. */
+  forfeited: boolean;
 }
 
 export interface SwissState {
@@ -35,7 +39,7 @@ export interface SwissConfig {
 export function createSwiss(participants: Participant[], config: SwissConfig = {}): SwissState {
   const records: Record<ParticipantId, SwissRecord> = {};
   for (const p of participants) {
-    records[p.id] = { wins: 0, losses: 0, opponents: [], hadBye: false };
+    records[p.id] = { wins: 0, losses: 0, opponents: [], hadBye: false, forfeited: false };
   }
   return {
     participants: [...participants],
@@ -48,6 +52,7 @@ export function createSwiss(participants: Participant[], config: SwissConfig = {
 
 export function statusOf(state: SwissState, id: ParticipantId): SwissStatus {
   const rec = state.records[id];
+  if (rec.forfeited) return 'eliminated';
   if (rec.wins >= state.winsToQualify) return 'qualified';
   if (rec.losses >= state.lossesToEliminate) return 'eliminated';
   return 'active';
@@ -85,6 +90,56 @@ export function recordResult(
   next.records[loser].losses += 1;
   next.records[match.home].opponents.push(match.away);
   next.records[match.away].opponents.push(match.home);
+
+  return next;
+}
+
+/** Score attribué au gagnant d'une manche perdue par forfait (Valorant : 13-0). */
+const FORFEIT_SCORE = 13;
+
+/**
+ * Forfait d'une manche : l'adversaire du `forfeitingId` remporte le match (13-0),
+ * le concédant encaisse une défaite mais reste en lice. Le match est marqué `forfeit`.
+ */
+export function concedeMatch(
+  state: SwissState,
+  matchId: string,
+  forfeitingId: ParticipantId,
+): SwissState {
+  const next = cloneState(state);
+  const match = next.matches.find((m) => m.id === matchId);
+  if (!match) throw new Error(`Match introuvable : ${matchId}`);
+  if (match.away === null) throw new Error(`Le match ${matchId} est un bye : pas de forfait.`);
+  if (match.score !== null) throw new Error(`Le match ${matchId} est déjà joué.`);
+  if (forfeitingId !== match.home && forfeitingId !== match.away)
+    throw new Error(`${forfeitingId} ne joue pas le match ${matchId}.`);
+
+  const winner = forfeitingId === match.home ? match.away : match.home;
+  match.forfeit = forfeitingId;
+  match.score =
+    match.home === winner ? { home: FORFEIT_SCORE, away: 0 } : { home: 0, away: FORFEIT_SCORE };
+
+  next.records[winner].wins += 1;
+  next.records[forfeitingId].losses += 1;
+  next.records[match.home].opponents.push(match.away);
+  next.records[match.away].opponents.push(match.home);
+
+  return next;
+}
+
+/**
+ * Retrait du tournoi (forfait d'équipe) : l'équipe passe éliminée et ne sera plus
+ * appariée. Un éventuel match non joué de la ronde courante est concédé à l'adversaire.
+ */
+export function withdraw(state: SwissState, id: ParticipantId): SwissState {
+  let next = cloneState(state);
+  if (!next.records[id]) throw new Error(`Participant introuvable : ${id}`);
+  next.records[id].forfeited = true;
+
+  const pending = next.matches.find(
+    (m) => m.away !== null && m.score === null && (m.home === id || m.away === id),
+  );
+  if (pending) next = concedeMatch(next, pending.id, id);
 
   return next;
 }

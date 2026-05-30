@@ -22,7 +22,7 @@ export interface Standing {
   rank: number;
   wins: number;
   losses: number;
-  /** Tiebreak (Buchholz : somme des victoires des adversaires). */
+  /** Bris d'égalité (méthode Buchholz : somme des victoires des adversaires). */
   tiebreak: number;
   status: SwissStatus;
 }

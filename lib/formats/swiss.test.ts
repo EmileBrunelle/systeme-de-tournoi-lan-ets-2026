@@ -4,6 +4,8 @@ import {
   createSwiss,
   statusOf,
   recordResult,
+  concedeMatch,
+  withdraw,
   buchholz,
   generateNextRound,
   currentRound,
@@ -28,7 +30,7 @@ describe('createSwiss', () => {
     expect(state.winsToQualify).toBe(3);
     expect(state.lossesToEliminate).toBe(3);
     expect(state.matches).toEqual([]);
-    expect(state.records['p1']).toEqual({ wins: 0, losses: 0, opponents: [], hadBye: false });
+    expect(state.records['p1']).toEqual({ wins: 0, losses: 0, opponents: [], hadBye: false, forfeited: false });
   });
 
   it('accepte une config personnalisée', () => {
@@ -74,6 +76,92 @@ describe('recordResult', () => {
   it('lève une erreur si le match est introuvable', () => {
     const state = createSwiss(mkParticipants(2));
     expect(() => recordResult(state, 'inexistant', { home: 1, away: 0 })).toThrow();
+  });
+});
+
+describe('concedeMatch (forfait de manche)', () => {
+  function oneMatch(): SwissState {
+    const state = createSwiss(mkParticipants(2));
+    return { ...state, matches: [{ id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: null }] };
+  }
+
+  it('accorde la victoire à l’adversaire et marque le forfait', () => {
+    const s = concedeMatch(oneMatch(), 'R1-M1', 'p2');
+    expect(s.records['p1']).toMatchObject({ wins: 1, losses: 0, opponents: ['p2'] });
+    expect(s.records['p2']).toMatchObject({ wins: 0, losses: 1, opponents: ['p1'] });
+    expect(s.matches[0].forfeit).toBe('p2');
+    expect(s.matches[0].score).not.toBeNull();
+  });
+
+  it('laisse l’équipe qui concède en lice (perd juste cette manche)', () => {
+    const s = concedeMatch(oneMatch(), 'R1-M1', 'p2');
+    expect(statusOf(s, 'p2')).toBe('active');
+  });
+
+  it('ne mute pas l’état d’origine', () => {
+    const before = oneMatch();
+    concedeMatch(before, 'R1-M1', 'p2');
+    expect(before.matches[0].forfeit).toBeUndefined();
+    expect(before.records['p1'].wins).toBe(0);
+  });
+
+  it('lève une erreur si l’équipe ne joue pas ce match', () => {
+    expect(() => concedeMatch(oneMatch(), 'R1-M1', 'p9')).toThrow();
+  });
+
+  it('lève une erreur sur un bye', () => {
+    const state = createSwiss(mkParticipants(2));
+    const withBye = { ...state, matches: [{ id: 'R1-BYE', round: 1, home: 'p1', away: null, score: { home: 1, away: 0 } }] };
+    expect(() => concedeMatch(withBye, 'R1-BYE', 'p1')).toThrow();
+  });
+
+  it('lève une erreur si la manche est déjà jouée', () => {
+    const played = concedeMatch(oneMatch(), 'R1-M1', 'p2');
+    expect(() => concedeMatch(played, 'R1-M1', 'p1')).toThrow();
+  });
+});
+
+describe('withdraw (retrait du tournoi en cours)', () => {
+  it('marque l’équipe éliminée même sans avoir atteint la limite de défaites', () => {
+    const s = withdraw(createSwiss(mkParticipants(4)), 'p1');
+    expect(statusOf(s, 'p1')).toBe('eliminated');
+  });
+
+  it('concède le match en attente de la ronde courante à l’adversaire', () => {
+    let s = generateNextRound(createSwiss(mkParticipants(4))); // ronde 1, 2 matchs non joués
+    const m = s.matches.find((mm) => mm.round === 1 && mm.away !== null)!;
+    const victim = m.home;
+    const opponent = m.away!;
+    s = withdraw(s, victim);
+    const resolved = s.matches.find((mm) => mm.id === m.id)!;
+    expect(resolved.score).not.toBeNull();
+    expect(resolved.forfeit).toBe(victim);
+    expect(s.records[opponent].wins).toBe(1);
+    expect(s.records[victim].losses).toBe(1);
+  });
+
+  it('ne réapparie plus l’équipe retirée aux rondes suivantes', () => {
+    let s = generateNextRound(createSwiss(mkParticipants(4))); // ronde 1
+    s = withdraw(s, 'p1');
+    // jouer les autres matchs non joués de la ronde
+    for (const m of s.matches.filter((mm) => mm.round === 1 && mm.away !== null && mm.score === null)) {
+      s = recordResult(s, m.id, { home: 13, away: 7 });
+    }
+    s = generateNextRound(s); // ronde 2
+    const r2 = s.matches.filter((mm) => mm.round === 2);
+    const ids = r2.flatMap((m) => [m.home, m.away]);
+    expect(ids).not.toContain('p1');
+  });
+
+  it('sans match en attente, marque seulement l’équipe éliminée', () => {
+    let s = generateNextRound(createSwiss(mkParticipants(4)));
+    for (const m of s.matches.filter((mm) => mm.round === 1 && mm.away !== null && mm.score === null)) {
+      s = recordResult(s, m.id, { home: 13, away: 7 });
+    }
+    const matchesBefore = s.matches.length;
+    s = withdraw(s, 'p1');
+    expect(statusOf(s, 'p1')).toBe('eliminated');
+    expect(s.matches.length).toBe(matchesBefore); // aucun match créé/modifié
   });
 });
 

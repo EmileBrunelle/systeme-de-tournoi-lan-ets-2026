@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
 import {
   Dialog,
@@ -16,6 +16,8 @@ import { Button } from './ui/button';
 /**
  * Bouton déclencheur + dialog de confirmation pour une action destructive.
  * `action` est une server action déjà liée (bind) ; soumise via un <form>.
+ * `icon` (défaut : poubelle) personnalise le déclencheur ; `triggerAriaLabel`
+ * nomme le bouton icône.
  */
 export default function ConfirmDialog({
   action,
@@ -23,12 +25,16 @@ export default function ConfirmDialog({
   description,
   confirmLabel = 'Supprimer',
   triggerLabel,
+  icon = <Trash2 className="size-4" />,
+  triggerAriaLabel = 'Supprimer',
 }: {
   action: (formData: FormData) => void | Promise<void>;
   title: string;
   description: string;
   confirmLabel?: string;
   triggerLabel?: string;
+  icon?: ReactNode;
+  triggerAriaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -36,11 +42,11 @@ export default function ConfirmDialog({
       <DialogTrigger asChild>
         {triggerLabel ? (
           <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
-            <Trash2 className="size-4" /> {triggerLabel}
+            {icon} {triggerLabel}
           </Button>
         ) : (
-          <Button variant="ghost" size="icon" aria-label="Supprimer" className="text-muted-foreground hover:text-destructive">
-            <Trash2 className="size-4" />
+          <Button variant="ghost" size="icon" aria-label={triggerAriaLabel} className="text-muted-foreground hover:text-destructive">
+            {icon}
           </Button>
         )}
       </DialogTrigger>

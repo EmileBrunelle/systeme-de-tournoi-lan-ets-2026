@@ -107,6 +107,26 @@ export async function recordSwissResult(id: string, matchId: string, home: numbe
   refresh();
 }
 
+/** Forfait d'une manche suisse : l'adversaire l'emporte, le concédant reste en lice. */
+export async function concedeSwissMatch(id: string, matchId: string, forfeitingId: string) {
+  const t = await getTournament(id);
+  const state = t && loadState(t);
+  if (!state || state.game !== 'valorant') throw new Error('État suisse invalide.');
+  const next = { ...state, swiss: swiss.concedeMatch(state.swiss, matchId, forfeitingId) };
+  await saveState(id, next);
+  refresh();
+}
+
+/** Retrait d'une équipe du tournoi suisse : éliminée + match en cours concédé. */
+export async function withdrawTeam(id: string, participantId: string) {
+  const t = await getTournament(id);
+  const state = t && loadState(t);
+  if (!state || state.game !== 'valorant') throw new Error('État suisse invalide.');
+  const next = { ...state, swiss: swiss.withdraw(state.swiss, participantId) };
+  await saveState(id, next);
+  refresh();
+}
+
 export async function startPlayoff(id: string) {
   const t = await getTournament(id);
   const state = t && loadState(t);
@@ -121,6 +141,18 @@ export async function recordPlayoffResult(id: string, matchId: string, a: number
   const state = t && loadState(t);
   if (!state || state.game !== 'valorant' || !state.playoff) throw new Error('État playoff invalide.');
   const playoff = de.recordResult(state.playoff, matchId, { a, b });
+  const phase = de.isComplete(playoff) ? 'done' : 'playoff';
+  await saveState(id, { ...state, playoff, phase });
+  refresh();
+}
+
+/** Forfait d'un match playoff : le côté indiqué l'emporte par forfait (13-0). */
+export async function concedePlayoffMatch(id: string, matchId: string, winner: 'a' | 'b') {
+  const t = await getTournament(id);
+  const state = t && loadState(t);
+  if (!state || state.game !== 'valorant' || !state.playoff) throw new Error('État playoff invalide.');
+  const score = winner === 'a' ? { a: 13, b: 0 } : { a: 0, b: 13 };
+  const playoff = de.recordResult(state.playoff, matchId, score);
   const phase = de.isComplete(playoff) ? 'done' : 'playoff';
   await saveState(id, { ...state, playoff, phase });
   refresh();

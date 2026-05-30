@@ -49,7 +49,9 @@ function swissTiles(state: ValorantState): Vital[] {
   const qualified = board.filter((r) => r.status === 'qualified').length;
   const eliminated = board.filter((r) => r.status === 'eliminated').length;
   const active = board.filter((r) => r.status === 'active').length;
-  const leader = board[0] ?? null;
+  // Tant que personne n'a gagné de match, le classement n'est pas significatif
+  // (tri par seed aléatoire) : pas de meneur arbitraire.
+  const leader = board[0]?.wins ? board[0] : null;
 
   return [
     {
@@ -76,8 +78,8 @@ function swissTiles(state: ValorantState): Vital[] {
     {
       key: 'leader',
       label: 'Meneur',
-      value: leader ? leader.name : '—',
-      hint: leader ? `${leader.wins}-${leader.losses}` : undefined,
+      value: leader ? leader.name : 'Aucun',
+      hint: leader ? `${leader.wins}-${leader.losses}` : 'aucun match joué',
       tone: leader && leader.status === 'qualified' ? 'success' : 'default',
     },
   ];

@@ -32,6 +32,13 @@ describe('formatPairings', () => {
     expect(joined).toContain('*bye (qualifié automatiquement)*');
   });
 
+  it('uses a custom bye label when provided (pour l’anglais)', () => {
+    const rows: PairingRow[] = [{ a: 'Team Omega', b: null }];
+    const joined = formatPairings('Round 2', rows, { byeLabel: 'bye (auto-qualified)' }).join('');
+    expect(joined).toContain('*bye (auto-qualified)*');
+    expect(joined).not.toContain('qualifié automatiquement');
+  });
+
   it('appends note in italics when present', () => {
     const rows: PairingRow[] = [{ a: 'Team A', b: 'Team B', note: 'Bo3' }];
     const chunks = formatPairings('Ronde 3', rows);
@@ -129,6 +136,12 @@ describe('formatResults', () => {
     const rows: ResultRow[] = [{ a: 'Solo', b: null, scoreA: 1, scoreB: 0 }];
     const joined = formatResults('Résultats', rows).join('');
     expect(joined).toContain('`Solo` — bye');
+  });
+
+  it('uses a custom bye label when provided', () => {
+    const rows: ResultRow[] = [{ a: 'Solo', b: null, scoreA: 1, scoreB: 0 }];
+    const joined = formatResults('Results', rows, { byeLabel: 'bye (auto-win)' }).join('');
+    expect(joined).toContain('`Solo` — bye (auto-win)');
   });
 
   it('appends outcome when present', () => {

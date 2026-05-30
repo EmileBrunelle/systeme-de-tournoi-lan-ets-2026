@@ -50,12 +50,17 @@ function build(title: string, lines: string[]): string[] {
  *   `1.` Team A **vs** Team B _(note)_
  *   `1.` Team A — *bye (qualifié automatiquement)*
  */
-export function formatPairings(title: string, rows: PairingRow[]): string[] {
+export function formatPairings(
+  title: string,
+  rows: PairingRow[],
+  opts: { byeLabel?: string } = {},
+): string[] {
+  const byeLabel = opts.byeLabel ?? 'bye (qualifié automatiquement)';
   const lines = rows.map((row, i) => {
     const num = `\`${i + 1}.\``;
     let line: string;
     if (row.b === null) {
-      line = `${num} ${row.a} — *bye (qualifié automatiquement)*`;
+      line = `${num} ${row.a} — *${byeLabel}*`;
     } else {
       line = `${num} ${row.a} **vs** ${row.b}`;
     }
@@ -85,11 +90,16 @@ export function formatStandings(title: string, rows: StandingRow[]): string[] {
  *   `Team A` 13–7 `Team B` → outcome
  *   `Team A` — bye
  */
-export function formatResults(title: string, rows: ResultRow[]): string[] {
+export function formatResults(
+  title: string,
+  rows: ResultRow[],
+  opts: { byeLabel?: string } = {},
+): string[] {
+  const byeLabel = opts.byeLabel ?? 'bye';
   const lines = rows.map((row) => {
     let line: string;
     if (row.b === null) {
-      line = `\`${row.a}\` — bye`;
+      line = `\`${row.a}\` — ${byeLabel}`;
     } else {
       line = `\`${row.a}\` ${row.scoreA}–${row.scoreB} \`${row.b}\``;
     }
