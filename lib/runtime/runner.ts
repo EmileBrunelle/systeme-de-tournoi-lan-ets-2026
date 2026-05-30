@@ -49,12 +49,13 @@ export function canStartPlayoff(state: ValorantState): boolean {
 }
 
 /**
- * Lance le playoff : prend les `playoffSize` meilleures équipes du classement
- * suisse (qualifiées en tête) et les re-seede 1..N pour la double-élimination.
+ * Lance le playoff : prend les `playoffSize` qualifiés et les seede 1..N pour la
+ * double-élimination via `playoffSeeding` (score borné « le calendrier compense les
+ * défaites, sans les écraser ») — pas l'ordre brut du classement suisse. Voir le spec
+ * `docs/superpowers/specs/2026-05-30-seeding-playoff-calendrier-design.md`.
  */
 export function startPlayoff(state: ValorantState): ValorantState {
-  const board = swiss.standings(state.swiss);
-  const top = board.slice(0, state.playoffSize);
+  const top = swiss.playoffSeeding(state.swiss, state.playoffSize);
   const participants: Participant[] = top.map((s, i) => ({
     id: s.participantId,
     name: s.name,

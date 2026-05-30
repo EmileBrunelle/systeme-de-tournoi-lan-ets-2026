@@ -29,33 +29,58 @@ un **bonus inconditionnel** (gagné ou perdu) — jamais une pénalité.
 
 ---
 
-## Décision — critère « difficulté du calendrier »
+## Décision — score borné « le calendrier compense, sans écraser »
+
+> **Révision (2026-05-30, 2e passe).** La 1re version mettait le calibre du
+> calendrier en critère **#1** et reléguait les défaites au 3e rang. Sur les vraies
+> données du LAN, ça *écrasait* le record au lieu de le *compenser* : un invaincu
+> (Minions, 3-0) tombait sous un 3-1, et un 3-1 (OP//ZERO) chutait **dernier**
+> derrière trois 3-2. C'est une surcorrection — l'objectif déclaré était de
+> *compenser* une fiche légèrement moins bonne, pas de rendre le record inerte.
+> On remplace par un **score borné**.
+
+**Constat-clé :** tous les qualifiés ont **le même nombre de victoires** (la suisse
+s'arrête à `winsToQualify`). Le seul vrai levier est donc **défaites vs dureté du
+parcours**. On les met sur la même échelle :
+
+> **`score = SCHEDULE_WEIGHT × calibre_moyen − défaites`**, avec `SCHEDULE_WEIGHT = 2`.
 
 On classe les 8 qualifiés par, dans l'ordre :
 
-1. **Difficulté moyenne du calendrier** ↓ — `buchholz(id) / nombre d'adversaires`
-   (moyenne des victoires des adversaires affrontés). *Moyenne*, pas somme, pour
-   neutraliser le biais « un 3-2 joue 5 matchs, un 3-0 en joue 3 ». Affronter du
-   gros monde monte ce score qu'on ait gagné **ou** perdu → ne punit jamais un
-   parcours dur.
-2. **Diff de manches** ↓ — `Σ(manches gagnées − manches perdues)`, départage à
-   calendrier égal (la domination en manches).
-3. **Victoires** ↓ — filet.
-4. **Seed initial** ↑ — filet final déterministe.
+1. **Score de seeding** ↓ — ci-dessus. `calibre_moyen = buchholz(id) / nb d'adversaires`
+   (moyenne, pas somme, pour neutraliser « un 3-2 joue plus de matchs »). Affronter
+   du gros monde monte le score qu'on ait gagné **ou** perdu → ne punit jamais un
+   parcours dur ; une défaite le baisse.
+2. **Diff de manches** ↓ — départage à score égal (la domination en manches).
+3. **Seed initial** ↑ — filet final déterministe.
 
-**Explication aux équipes (sans jargon) :** « Le seed récompense d'abord la
-dureté du parcours — la force des équipes affrontées —, puis la marge dans les
-manches. »
+**Pourquoi `SCHEDULE_WEIGHT = 2` :** il faut **une demi-victoire** d'écart de
+calibre moyen pour compenser **une défaite** (`2 × 0.5 = 1`). C'est le réglage qui,
+sur les vraies données, produit la **correction minimale** : un seul échange
+(XTM 3-2, calendrier le plus dur, monte d'un cran devant OP//ZERO 3-1, parcours le
+plus mou). Tunable : ↑ pour plus de franchissements, ↓ pour coller au record.
 
-### Pourquoi ça franchit les paliers dans le bon sens
+**Explication aux équipes (sans jargon) :** « Ton seed, c'est ton bilan, plus un
+bonus pour avoir affronté un calendrier difficile. »
 
-Un 3-2 au calendrier de feu (a affronté les meilleurs) a une difficulté moyenne
-plus haute qu'un 3-1 au parcours doux → il passe devant. C'est exactement le
-scénario qu'on veut corriger. Inversement, dans le pli (fort-vs-faible **dans**
-chaque groupe de bilan), les équipes qui gagnent affrontent d'autres gagnants :
-record et difficulté de calendrier sont donc fortement corrélés. Le
-franchissement ne se déclenche donc qu'au cas par cas, sur les vraies anomalies
-de tirage — pas en permanence.
+### Pourquoi c'est borné (et pas « calibre d'abord »)
+
+- Un **invaincu reste en tête** : son score (pas de défaite) ne se fait dépasser
+  par un 3-1 que si l'écart de calibre dépasse une demi-victoire — pas pour
+  quelques centièmes.
+- Un **3-2 au calendrier de feu** peut franchir un 3-1 au parcours doux *uniquement*
+  si l'écart de calibre (≥ 0.5) compense la défaite supplémentaire. C'est le
+  scénario qu'on voulait corriger (le vrai cas XTM), sans déclasser personne d'autre.
+- Dans le pli, record et calibre sont fortement corrélés (les gagnants jouent des
+  gagnants) → le franchissement ne se déclenche qu'au cas par cas, sur les vraies
+  anomalies de tirage.
+
+### Le piège évité (rappel)
+
+La **diff de manches pure** ferait *l'inverse* du but (récompense d'écraser des
+faibles). Elle ne sert donc QUE de départage à score égal — jamais de critère
+primaire. Le calibre, lui, traite « avoir affronté un fort » comme un bonus
+inconditionnel.
 
 ---
 
@@ -83,8 +108,10 @@ seeding du playoff, appelée **uniquement** par `startPlayoff`.
 - `avgOpponentWins(state, id): number` — `buchholz(id) / opponents.length` ;
   retourne `0` si aucun adversaire (garde anti division-par-zéro).
 - `playoffSeeding(state, n): Standing[]` — prend les `n` premiers du classement
-  (= les qualifiés) et les **trie par le critère ci-dessus**. Retourne le même
-  type `Standing[]` que `standings`, dans l'ordre de seed.
+  (= les qualifiés) et les **trie par le score borné** (`SCHEDULE_WEIGHT × calibre
+  moyen − défaites`, puis diff de manches, puis seed initial). `SCHEDULE_WEIGHT`
+  et `seedingScore` sont des constantes/fonctions privées du module. Retourne le
+  même type `Standing[]` que `standings`, dans l'ordre de seed.
 
 ### Branchement (`lib/runtime/runner.ts`)
 
@@ -113,14 +140,15 @@ injuste sur les vraies équipes, on ajuste *avant* de publier. Rien à l'aveugle
 
 Écrits **avant** l'implémentation. Cas conçus pour exposer les pièges :
 
-- **Parcours dur vs facile** : un 3-2 à forte difficulté moyenne passe devant un
-  3-1 à faible difficulté (le franchissement fonctionne).
-- **Pas de pénalité pour parcours dur** : perdre contre un fort ne fait jamais
-  *descendre* sous une équipe au calendrier plus mou à diff de manches comparable.
+- **Gros écart de calendrier → franchissement** : un 3-2 au calendrier nettement
+  plus dur passe devant un 3-1 au parcours mou (le bonus dépasse la défaite).
+- **Mince écart → PAS de franchissement (le bornage)** : un 3-0 reste devant un
+  3-1 à peine plus dur (quelques centièmes de calibre ne renversent pas une
+  défaite) ; un 3-1 garde sa place sur un 3-2 au calendrier à peine plus dur.
 - **Biais du nombre de matchs** : à difficulté/diff égales, un 3-2 et un 3-0 ne
   sont pas départagés par le nombre d'adversaires (moyenne, pas somme).
-- **Diff de manches en départage** : à difficulté de calendrier égale, la plus
-  grosse diff de manches l'emporte.
+- **Diff de manches en départage** : à score égal, la plus grosse diff de manches
+  l'emporte.
 - **Forfait / bye sans score** : `roundDiff` les ignore sans planter ;
   `avgOpponentWins` ne divise pas par zéro.
 - **Déterminisme** : même état → même ordre (filet seed initial).

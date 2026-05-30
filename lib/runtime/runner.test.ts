@@ -32,7 +32,7 @@ describe('runner Valorant', () => {
     expect(state.playoff).toBeNull();
   });
 
-  it('passe au playoff avec les N meilleurs du classement suisse', () => {
+  it('passe au playoff avec les N qualifiés, seedés par difficulté de calendrier', () => {
     const started = runner.startValorant(makeParticipants(8), 4);
     const done = playOutSwiss(started);
     expect(runner.canStartPlayoff(done)).toBe(true);
@@ -41,17 +41,39 @@ describe('runner Valorant', () => {
     expect(withPlayoff.phase).toBe('playoff');
     expect(withPlayoff.playoff).not.toBeNull();
 
-    // Le playoff contient exactement les 4 premiers du classement suisse,
-    // re-seedés 1..4.
-    const top4 = swiss.standings(done.swiss).slice(0, 4).map((r) => r.participantId);
     const playoffParts = withPlayoff.playoff!.participants;
-    expect(playoffParts.map((p) => p.id)).toEqual(top4);
+
+    // Même ensemble que les 4 premiers du classement suisse (les qualifiés)...
+    const qualifiedSet = swiss.standings(done.swiss).slice(0, 4).map((r) => r.participantId).sort();
+    expect([...playoffParts.map((p) => p.id)].sort()).toEqual(qualifiedSet);
+
+    // ...mais l'ORDRE suit le seeding playoff (difficulté du calendrier), re-seedés 1..4.
+    const seeded = swiss.playoffSeeding(done.swiss, 4).map((r) => r.participantId);
+    expect(playoffParts.map((p) => p.id)).toEqual(seeded);
     expect(playoffParts.map((p) => p.seed)).toEqual([1, 2, 3, 4]);
   });
 
   it('refuse le playoff tant que la suisse n’est pas finie', () => {
     const started = runner.startValorant(makeParticipants(8), 4);
     expect(runner.canStartPlayoff(started)).toBe(false);
+  });
+
+  it('seede le playoff par difficulté de calendrier (peut franchir le bilan), pas par le classement suisse', () => {
+    // p1 (3-0) a un calendrier mou (adversaires sans victoire) ; p2 (3-1) a un
+    // calendrier dur (adversaires à 2 victoires). Le classement suisse met p1
+    // devant (moins de défaites), mais le seeding playoff donne le seed 1 à p2.
+    const sw = swiss.createSwiss(makeParticipants(6), { winsToQualify: 9, lossesToEliminate: 9 });
+    sw.records['p1'] = { wins: 3, losses: 0, opponents: ['p3', 'p4'], hadBye: false, forfeited: false };
+    sw.records['p2'] = { wins: 3, losses: 1, opponents: ['p5', 'p6'], hadBye: false, forfeited: false };
+    sw.records['p5'].wins = 2;
+    sw.records['p6'].wins = 2;
+    const state: runner.ValorantState = { game: 'valorant', phase: 'swiss', playoffSize: 2, swiss: sw, playoff: null };
+
+    expect(swiss.standings(sw).slice(0, 2).map((r) => r.participantId)).toEqual(['p1', 'p2']);
+
+    const withPlayoff = runner.startPlayoff(state);
+    expect(withPlayoff.playoff!.participants.map((p) => p.id)).toEqual(['p2', 'p1']);
+    expect(withPlayoff.playoff!.participants.map((p) => p.seed)).toEqual([1, 2]);
   });
 });
 

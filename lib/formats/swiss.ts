@@ -192,6 +192,32 @@ export function buchholz(state: SwissState, id: ParticipantId): number {
   return state.records[id].opponents.reduce((sum, oppId) => sum + state.records[oppId].wins, 0);
 }
 
+/**
+ * Différentiel de manches : somme des (manches à soi − manches adverses) sur les
+ * matchs réellement joués. Byes (pas d'adversaire) et forfaits (le 13-0 est une
+ * marge administrative, pas une vraie domination) sont exclus.
+ */
+export function roundDiff(state: SwissState, id: ParticipantId): number {
+  return state.matches.reduce((sum, m) => {
+    if (m.score === null || m.away === null || m.forfeit !== undefined) return sum;
+    if (m.home === id) return sum + (m.score.home - m.score.away);
+    if (m.away === id) return sum + (m.score.away - m.score.home);
+    return sum;
+  }, 0);
+}
+
+/**
+ * Difficulté moyenne du calendrier : moyenne des victoires des adversaires
+ * affrontés (Buchholz / nombre d'adversaires). La moyenne, et non la somme,
+ * neutralise le biais « qui a joué plus de matchs a un Buchholz plus gros ».
+ * Retourne 0 si aucun adversaire (garde anti division par zéro).
+ */
+export function avgOpponentWins(state: SwissState, id: ParticipantId): number {
+  const opponents = state.records[id].opponents;
+  if (opponents.length === 0) return 0;
+  return buchholz(state, id) / opponents.length;
+}
+
 /** Numéro de la dernière ronde générée (0 si aucune). */
 export function currentRound(state: SwissState): number {
   return state.matches.reduce((max, m) => Math.max(max, m.round), 0);
@@ -356,4 +382,53 @@ export function standings(state: SwissState): Standing[] {
     tiebreak: buchholz(state, p.id),
     status: statusOf(state, p.id),
   }));
+}
+
+/**
+ * Poids du calibre du calendrier dans le score de seeding. Réglé à 2 → il faut
+ * **une demi-victoire** d'écart de calibre moyen pour compenser **une défaite**
+ * (`SCHEDULE_WEIGHT × 0.5 = 1`). Le calendrier *compense* donc une fiche, sans
+ * jamais l'écraser : un mince avantage de parcours ne renverse pas une défaite,
+ * mais un parcours nettement plus dur, oui.
+ */
+const SCHEDULE_WEIGHT = 2;
+
+/**
+ * Score de seeding d'une équipe : `poids × calibre moyen du calendrier − défaites`.
+ * Tous les qualifiés ont le même nombre de victoires (la suisse s'arrête à
+ * `winsToQualify`) ; le vrai levier est donc défaites vs dureté du parcours. Un
+ * calendrier plus dur remonte le score, une défaite le baisse — bornés l'un par
+ * l'autre via `SCHEDULE_WEIGHT`.
+ */
+function seedingScore(state: SwissState, id: ParticipantId): number {
+  return SCHEDULE_WEIGHT * avgOpponentWins(state, id) - state.records[id].losses;
+}
+
+/**
+ * Ordonne les `n` meilleures équipes (= les qualifiés, en tête du classement)
+ * pour le seeding du playoff. Critère, dans l'ordre :
+ *   1. score de seeding ↓ (`seedingScore` : calibre du calendrier qui *compense*
+ *      les défaites de façon bornée — voir `SCHEDULE_WEIGHT`) ;
+ *   2. diff de manches ↓ (départage à score égal — la domination en manches) ;
+ *   3. seed initial ↑ (filet déterministe).
+ *
+ * Contrairement à `standings`/l'appariement (`strengthCompare`), ce critère peut
+ * FRANCHIR les paliers de bilan — mais seulement quand l'écart de calendrier est
+ * assez grand pour compenser la défaite supplémentaire. Un 3-0 ne tombe pas sous
+ * un 3-1 pour quelques centièmes de calibre, et un 3-1 au parcours doux n'est pas
+ * relégué derrière tous les 3-2 : seul un 3-2 au calendrier nettement plus dur
+ * remonte. N'affecte QUE le playoff — la phase suisse reste inchangée.
+ */
+export function playoffSeeding(state: SwissState, n: number): Standing[] {
+  const seedOf = new Map(state.participants.map((p) => [p.id, p.seed]));
+  const ordered = standings(state)
+    .slice(0, n)
+    .sort((a, b) => {
+      const scoreDiff = seedingScore(state, b.participantId) - seedingScore(state, a.participantId);
+      if (scoreDiff !== 0) return scoreDiff;
+      const rdDiff = roundDiff(state, b.participantId) - roundDiff(state, a.participantId);
+      if (rdDiff !== 0) return rdDiff;
+      return (seedOf.get(a.participantId) ?? 0) - (seedOf.get(b.participantId) ?? 0);
+    });
+  return ordered.map((s, i) => ({ ...s, rank: i + 1 }));
 }

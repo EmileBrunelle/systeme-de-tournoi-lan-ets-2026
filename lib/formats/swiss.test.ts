@@ -14,6 +14,9 @@ import {
   isComplete,
   qualifiers,
   standings,
+  roundDiff,
+  avgOpponentWins,
+  playoffSeeding,
 } from './swiss';
 import type { SwissState } from './swiss';
 import type { Participant } from '../domain/types';
@@ -435,5 +438,140 @@ describe('isComplete + qualifiers + standings', () => {
     const table = standings(s);
     expect(table[0].participantId).toBe('p1'); // 3-0 d'abord, malgré un Buchholz plus bas
     expect(table[1].participantId).toBe('p2');
+  });
+});
+
+describe('roundDiff', () => {
+  it('somme (manches à soi − manches adverses) sur les matchs joués', () => {
+    const s = createSwiss(mkParticipants(2), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.matches = [
+      { id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: { home: 13, away: 7 } },
+      { id: 'R2-M1', round: 2, home: 'p2', away: 'p1', score: { home: 13, away: 9 } },
+    ];
+    // p1 : (13−7) + (9−13) = +2 ; p2 : (7−13) + (13−9) = −2
+    expect(roundDiff(s, 'p1')).toBe(2);
+    expect(roundDiff(s, 'p2')).toBe(-2);
+  });
+
+  it('ignore les byes et les forfaits (marge administrative, pas réelle)', () => {
+    const s = createSwiss(mkParticipants(2), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.matches = [
+      { id: 'R1-BYE', round: 1, home: 'p1', away: null, score: { home: 1, away: 0 } },
+      { id: 'R2-M1', round: 2, home: 'p1', away: 'p2', score: { home: 13, away: 0 }, forfeit: 'p2' },
+    ];
+    expect(roundDiff(s, 'p1')).toBe(0);
+    expect(roundDiff(s, 'p2')).toBe(0);
+  });
+
+  it('ignore les matchs non joués (score null)', () => {
+    const s = createSwiss(mkParticipants(2), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.matches = [{ id: 'R1-M1', round: 1, home: 'p1', away: 'p2', score: null }];
+    expect(roundDiff(s, 'p1')).toBe(0);
+  });
+});
+
+describe('avgOpponentWins', () => {
+  it('moyenne (pas somme) des victoires des adversaires', () => {
+    const s = createSwiss(mkParticipants(3), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.records['p1'].opponents = ['p2', 'p3'];
+    s.records['p2'].wins = 3;
+    s.records['p3'].wins = 1;
+    expect(avgOpponentWins(s, 'p1')).toBe(2); // (3 + 1) / 2
+  });
+
+  it('retourne 0 sans adversaire (anti division par zéro)', () => {
+    const s = createSwiss(mkParticipants(1), { winsToQualify: 9, lossesToEliminate: 9 });
+    expect(avgOpponentWins(s, 'p1')).toBe(0);
+  });
+});
+
+describe('playoffSeeding', () => {
+  it('franchit les paliers : un 3-1 au calendrier dur passe devant un 3-0 au calendrier mou', () => {
+    // p1 (3-1) a affronté p3..p6 (2 victoires chacun) → difficulté moyenne 2.
+    // p2 (3-0) a affronté p7..p9 (0 victoire) → difficulté moyenne 0.
+    const s = createSwiss(mkParticipants(9), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.records['p1'] = { wins: 3, losses: 1, opponents: ['p3', 'p4', 'p5', 'p6'], hadBye: false, forfeited: false };
+    s.records['p2'] = { wins: 3, losses: 0, opponents: ['p7', 'p8', 'p9'], hadBye: false, forfeited: false };
+    for (const id of ['p3', 'p4', 'p5', 'p6']) s.records[id].wins = 2;
+    // p7..p9 restent à 0 victoire
+    const seeded = playoffSeeding(s, 2);
+    expect(seeded.map((x) => x.participantId)).toEqual(['p1', 'p2']);
+  });
+
+  it('à difficulté de calendrier égale, départage par diff de manches', () => {
+    // p1 et p2 : un seul adversaire à 1 victoire → difficulté moyenne 1 chacun.
+    // p1 domine 13-2 (+11), p2 gagne serré 13-9 (+4) → p1 devant.
+    const s = createSwiss(mkParticipants(4), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.records['p1'] = { wins: 3, losses: 0, opponents: ['p3'], hadBye: false, forfeited: false };
+    s.records['p2'] = { wins: 3, losses: 0, opponents: ['p4'], hadBye: false, forfeited: false };
+    s.records['p3'].wins = 1;
+    s.records['p4'].wins = 1;
+    s.matches = [
+      { id: 'R1-M1', round: 1, home: 'p1', away: 'p3', score: { home: 13, away: 2 } },
+      { id: 'R1-M2', round: 1, home: 'p2', away: 'p4', score: { home: 13, away: 9 } },
+    ];
+    const seeded = playoffSeeding(s, 2);
+    expect(seeded.map((x) => x.participantId)).toEqual(['p1', 'p2']);
+  });
+
+  it('neutre au nombre de matchs : un 3-2 (5 adversaires) ne coiffe pas un 3-0 (3 adversaires) à difficulté/diff égales', () => {
+    // p1 (3-0, seed 1) : 3 adversaires à 1 victoire → moyenne 1, somme 3.
+    // p2 (3-2, seed 2) : 5 adversaires à 1 victoire → moyenne 1, somme 5.
+    // Une SOMME (Buchholz brut) mettrait p2 devant. La MOYENNE les égalise →
+    // diff de manches égale (0) → départage par seed initial → p1 (seed 1).
+    const s = createSwiss(mkParticipants(10), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.records['p1'] = { wins: 3, losses: 0, opponents: ['p3', 'p4', 'p5'], hadBye: false, forfeited: false };
+    s.records['p2'] = { wins: 3, losses: 2, opponents: ['p6', 'p7', 'p8', 'p9', 'p10'], hadBye: false, forfeited: false };
+    for (const id of ['p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10']) s.records[id].wins = 1;
+    const seeded = playoffSeeding(s, 2);
+    expect(seeded.map((x) => x.participantId)).toEqual(['p1', 'p2']);
+  });
+
+  it('réattribue les rangs 1..n dans l’ordre du seed', () => {
+    const s = createSwiss(mkParticipants(9), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.records['p1'] = { wins: 3, losses: 1, opponents: ['p3', 'p4', 'p5', 'p6'], hadBye: false, forfeited: false };
+    s.records['p2'] = { wins: 3, losses: 0, opponents: ['p7', 'p8', 'p9'], hadBye: false, forfeited: false };
+    for (const id of ['p3', 'p4', 'p5', 'p6']) s.records[id].wins = 2;
+    const seeded = playoffSeeding(s, 2);
+    expect(seeded[0].rank).toBe(1);
+    expect(seeded[1].rank).toBe(2);
+  });
+
+  it('ne renverse PAS une défaite sur un mince écart de calendrier : un 3-0 reste devant un 3-1 à peine plus dur', () => {
+    // p1 (3-0) calendrier moyen 1.00 (adv. 1,1) ; p2 (3-1) calendrier 1.40 (adv. 2,2,1,1,1).
+    // L'écart de calibre (0.40) est sous le seuil (~0.5 de calibre = 1 défaite) → ne doit
+    // PAS coiffer un invaincu. Le critère « calibre d'abord » mettait à tort p2 devant —
+    // c'est précisément ce qu'on corrige : un 3-0 ne tombe pas pour quelques centièmes de calibre.
+    const s = createSwiss(mkParticipants(9), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.records['p1'] = { wins: 3, losses: 0, opponents: ['p3', 'p4'], hadBye: false, forfeited: false };
+    s.records['p2'] = { wins: 3, losses: 1, opponents: ['p5', 'p6', 'p7', 'p8', 'p9'], hadBye: false, forfeited: false };
+    s.records['p3'].wins = 1; s.records['p4'].wins = 1; // moyenne 1.00
+    s.records['p5'].wins = 2; s.records['p6'].wins = 2; s.records['p7'].wins = 1; s.records['p8'].wins = 1; s.records['p9'].wins = 1; // 7/5 = 1.40
+    const seeded = playoffSeeding(s, 2);
+    expect(seeded.map((x) => x.participantId)).toEqual(['p1', 'p2']);
+  });
+
+  it('une défaite de plus pèse plus qu’un mince avantage de calendrier : un 3-1 garde sa place sur un 3-2 à peine plus dur', () => {
+    // p1 (3-1) calendrier 1.50 ; p2 (3-2) calendrier 1.80. L'écart (0.30) ne suffit pas
+    // à compenser une défaite de plus (seuil ~0.5 de calibre = 1 défaite).
+    // Le critère « calibre d'abord » mettait à tort le 3-2 devant.
+    const s = createSwiss(mkParticipants(9), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.records['p1'] = { wins: 3, losses: 1, opponents: ['p3', 'p4'], hadBye: false, forfeited: false };
+    s.records['p2'] = { wins: 3, losses: 2, opponents: ['p5', 'p6', 'p7', 'p8', 'p9'], hadBye: false, forfeited: false };
+    s.records['p3'].wins = 2; s.records['p4'].wins = 1; // moyenne 1.50
+    s.records['p5'].wins = 2; s.records['p6'].wins = 2; s.records['p7'].wins = 2; s.records['p8'].wins = 2; s.records['p9'].wins = 1; // 9/5 = 1.80
+    const seeded = playoffSeeding(s, 2);
+    expect(seeded.map((x) => x.participantId)).toEqual(['p1', 'p2']);
+  });
+
+  it('mais un GROS écart de calendrier compense bien la défaite : un 3-2 au calendrier de feu coiffe le 3-1 au parcours le plus mou', () => {
+    // p1 (3-1) calendrier 0.50 ; p2 (3-2) calendrier 2.00. Écart 1.50 > seuil → franchit.
+    const s = createSwiss(mkParticipants(9), { winsToQualify: 9, lossesToEliminate: 9 });
+    s.records['p1'] = { wins: 3, losses: 1, opponents: ['p3', 'p4'], hadBye: false, forfeited: false };
+    s.records['p2'] = { wins: 3, losses: 2, opponents: ['p5', 'p6', 'p7', 'p8', 'p9'], hadBye: false, forfeited: false };
+    s.records['p3'].wins = 1; s.records['p4'].wins = 0; // moyenne 0.50
+    s.records['p5'].wins = 2; s.records['p6'].wins = 2; s.records['p7'].wins = 2; s.records['p8'].wins = 2; s.records['p9'].wins = 2; // 10/5 = 2.00
+    const seeded = playoffSeeding(s, 2);
+    expect(seeded.map((x) => x.participantId)).toEqual(['p2', 'p1']);
   });
 });
