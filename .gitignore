@@ -25,3 +25,4 @@ prisma/dev.db*
 
 # État de travail local
 HANDOFF.md
+.playwright-mcp/
