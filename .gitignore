@@ -26,3 +26,6 @@ prisma/dev.db*
 # État de travail local
 HANDOFF.md
 .playwright-mcp/
+
+# Backups d'état live (contiennent les données du tournoi — sensibles)
+scripts/.backup-state-*.json

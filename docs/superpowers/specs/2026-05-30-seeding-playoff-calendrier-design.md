@@ -174,3 +174,28 @@ injuste sur les vraies équipes, on ajuste *avant* de publier. Rien à l'aveugle
 
 **En live**, avant de générer le playoff de ce LAN (après la manche 5). Le
 garde-fou ci-dessus est la dernière barrière avant publication.
+
+---
+
+## Addendum live (2026-05-30) — biais pré-tournoi ponctuel pour la vraie braquette
+
+Au moment de générer, le garde-fou a révélé un **défaut de bracketing** que le
+score borné seul ne corrige pas : les trois équipes jugées les plus fortes
+(GRID, Garnis, XTM — seeds **initiaux** 1/2/3) tombaient **toutes dans la même
+moitié**, Garnis vs XTM s'affrontant dès le 1er tour. C'est de la **séparation
+des têtes de série** — un principe de bracketing standard, distinct du *ranking*.
+
+Décision d'orga (« les chiffres ne disent pas tout ») : pour CETTE braquette, on
+a appliqué un **biais pré-tournoi** au score de seeding :
+
+> `score = 2×calibre_moyen − défaites − SEED_BIAS×seed_initial`, `SEED_BIAS = 2`.
+
+À ce poids, le seed initial mène → ordre **GRID, Garnis, XTM, Pandas, Minions,
+OP//ZERO, ETS, Durham**, ce qui place GRID seul en haut et Garnis/XTM en bas
+(séparés ; ils ne peuvent se croiser qu'en demie, jamais au 1er tour).
+
+**Portée :** override **ponctuel** appliqué via `scripts/generate-playoff-biased.ts`
+(pas dans `playoffSeeding`, qui reste le **score borné sans biais** par défaut).
+Conséquence assumée : régénérer le playoff via l'app produirait le bracket *sans*
+biais — sans objet ici, le playoff étant déjà lancé (`canStartPlayoff` = false).
+Backups d'état pris avant chaque génération (gitignorés).
