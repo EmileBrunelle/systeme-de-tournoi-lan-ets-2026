@@ -136,7 +136,8 @@ function sectionLabel(text: string, color: string) {
 }
 
 function header(champName: string | null) {
-  const lanLogo = logoDataUri('lan-ets.png');
+  // Texte blanc d'abord (lisible sur fond sombre), repli sur la version foncée puis le wordmark.
+  const lanLogo = logoDataUri('lan-ets-text-white.png') ?? logoDataUri('lan-ets.png');
   const valLogo = logoDataUri('valorant.png');
 
   const leftChildren = [];
