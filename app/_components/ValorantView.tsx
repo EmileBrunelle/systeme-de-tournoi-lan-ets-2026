@@ -1,4 +1,4 @@
-import { Trophy, Play, Flag, Pencil } from 'lucide-react';
+import { Trophy, Play, Flag } from 'lucide-react';
 import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
 import { lanEtsValorantSchedule, saturdayEndTime, sleepGapMinutes } from '@/lib/schedule/lan-ets';
@@ -22,8 +22,7 @@ import DiscordPanel from './DiscordPanel';
 import StatusTiles from './StatusTiles';
 import TeamManager from './TeamManager';
 import ConfirmDialog from './ConfirmDialog';
-import ForfeitDialog from './ForfeitDialog';
-import ScoreForm from './ScoreForm';
+import MatchRow, { type MatchRowState } from './MatchRow';
 import type { TournamentWithRoster } from '../_lib/repo';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
@@ -141,68 +140,42 @@ function SwissDashboard({ t, state }: { t: TournamentWithRoster; state: Valorant
           {round === 0 ? (
             <p className="text-sm text-muted-foreground">Aucune ronde générée.</p>
           ) : (
-            current.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 border-b border-border py-2.5 last:border-0">
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="font-medium">{nm(m.home)}</span>
-                  {m.away !== null && (
-                    <>
-                      <span className="text-sm text-muted-foreground">vs</span>
-                      <span className="font-medium">{nm(m.away)}</span>
-                    </>
-                  )}
-                  {onAir?.matchId === m.id && m.score === null && (
-                    <Badge
-                      variant="secondary"
-                      title="Niveaux proches, fort calibre — bon match pour le stream"
-                    >
-                      📺 à diffuser
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {m.away === null ? (
-                    <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400">bye — victoire auto</Badge>
-                  ) : m.score ? (
-                    m.forfeit ? (
-                      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-400">forfait</Badge>
-                    ) : (
-                      <details className="group">
-                        <summary className="flex cursor-pointer list-none items-center">
-                          <Badge variant="secondary" className="tabular-nums">
-                            {m.score.home}–{m.score.away}
-                            <Pencil className="ml-1 size-3 opacity-50 group-open:opacity-100" />
-                          </Badge>
-                        </summary>
-                        <ScoreForm
-                          action={submitAmendSwissResult.bind(null, t.id, m.id)}
-                          a={{ name: 'home', label: 'Score domicile corrigé', default: m.score.home }}
-                          b={{ name: 'away', label: 'Score visiteur corrigé', default: m.score.away }}
-                          submitLabel="Corriger"
-                          className="mt-2 flex items-center gap-1.5"
-                        />
-                      </details>
-                    )
-                  ) : (
-                    <>
-                      <ScoreForm
-                        action={submitSwissResult.bind(null, t.id, m.id)}
-                        a={{ name: 'home', label: 'Score domicile' }}
-                        b={{ name: 'away', label: 'Score visiteur' }}
-                        submitLabel="Enregistrer"
-                      />
-                      <ForfeitDialog
-                        title={`Forfait — ${nm(m.home)} vs ${nm(m.away)}`}
-                        options={[
-                          { label: `${nm(m.home)} déclare forfait`, action: concedeSwissMatch.bind(null, t.id, m.id, m.home) },
-                          { label: `${nm(m.away)} déclare forfait`, action: concedeSwissMatch.bind(null, t.id, m.id, m.away) },
-                        ]}
-                      />
-                    </>
-                  )}
-                </div>
-              </div>
-            ))
+            current.map((m) => {
+              const home = nm(m.home)!;
+              const away = m.away !== null ? nm(m.away)! : null;
+              const rowState: MatchRowState =
+                m.away === null
+                  ? { kind: 'bye' }
+                  : m.score
+                    ? m.forfeit
+                      ? { kind: 'forfeit' }
+                      : { kind: 'played', scoreA: m.score.home, scoreB: m.score.away, amend: submitAmendSwissResult.bind(null, t.id, m.id) }
+                    : {
+                        kind: 'pending',
+                        result: submitSwissResult.bind(null, t.id, m.id),
+                        forfeit: {
+                          title: `Forfait — ${home} vs ${away}`,
+                          options: [
+                            { label: `${home} déclare forfait`, action: concedeSwissMatch.bind(null, t.id, m.id, m.home) },
+                            { label: `${away} déclare forfait`, action: concedeSwissMatch.bind(null, t.id, m.id, m.away) },
+                          ],
+                        },
+                      };
+              return (
+                <MatchRow
+                  key={m.id}
+                  a={home}
+                  b={away}
+                  trailingBadge={
+                    onAir?.matchId === m.id && m.score === null ? (
+                      <Badge variant="secondary" title="Niveaux proches, fort calibre — bon match pour le stream">📺 à diffuser</Badge>
+                    ) : undefined
+                  }
+                  state={rowState}
+                  scoreFields={{ a: 'home', b: 'away' }}
+                />
+              );
+            })
           )}
         </CardContent>
       </Card>
@@ -370,29 +343,26 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
             <p className="text-sm text-muted-foreground">{champ ? 'Tournoi terminé.' : 'Aucun match jouable pour le moment.'}</p>
           ) : (
             playable.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 border-b border-border py-2.5 last:border-0">
-                <Badge variant="outline" className="shrink-0 text-muted-foreground">{BRACKET_LABEL[m.bracket] ?? m.bracket}</Badge>
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="font-medium">{slot(m.a)}</span>
-                  <span className="text-sm text-muted-foreground">vs</span>
-                  <span className="font-medium">{slot(m.b)}</span>
-                </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <ScoreForm
-                    action={submitPlayoffResult.bind(null, t.id, m.id)}
-                    a={{ name: 'a', label: 'Score A' }}
-                    b={{ name: 'b', label: 'Score B' }}
-                    submitLabel="Enregistrer"
-                  />
-                  <ForfeitDialog
-                    title={`Forfait — ${slot(m.a)} vs ${slot(m.b)}`}
-                    options={[
+              <MatchRow
+                key={m.id}
+                leadingBadge={
+                  <Badge variant="outline" className="shrink-0 text-muted-foreground">{BRACKET_LABEL[m.bracket] ?? m.bracket}</Badge>
+                }
+                a={slot(m.a)}
+                b={slot(m.b)}
+                state={{
+                  kind: 'pending',
+                  result: submitPlayoffResult.bind(null, t.id, m.id),
+                  forfeit: {
+                    title: `Forfait — ${slot(m.a)} vs ${slot(m.b)}`,
+                    options: [
                       { label: `${slot(m.a)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'b') },
                       { label: `${slot(m.b)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'a') },
-                    ]}
-                  />
-                </div>
-              </div>
+                    ],
+                  },
+                }}
+                scoreFields={{ a: 'a', b: 'b' }}
+              />
             ))
           )}
         </CardContent>
