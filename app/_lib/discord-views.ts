@@ -16,7 +16,9 @@ import {
   type StandingRow,
 } from '@/lib/discord/format';
 import { roundRecap, type RecapOptions } from '@/lib/discord/recap';
+import { formatBracket } from '@/lib/discord/bracket';
 import { estimateSchedule } from '@/lib/schedule/estimate';
+import { splitForDiscord } from '@/lib/discord/split';
 import type { RunnerState } from '@/lib/runtime/runner';
 
 export type { DiscordBlock };
@@ -118,32 +120,36 @@ function swissBlocks(s: swiss.SwissState, now: string): DiscordBlock[] {
 
 // ─── Bracket double-élimination (Valorant playoff) ───────────────────────────
 
+// Bilingue compact : données (noms, scores, rangs) UNE seule fois ; les libellés
+// portent les deux langues (« FR · EN »). On évite la duplication intégrale
+// FR-puis-EN — cf. le récap de fin de manche.
 function deBlocks(s: de.DEState): DiscordBlock[] {
   const names = nameMap(s.participants);
   const slot = (x: de.DESlot) => (x.kind === 'player' ? (names.get(x.id) ?? x.id) : x.kind === 'bye' ? 'bye' : 'à venir');
   const blocks: DiscordBlock[] = [];
 
+  // Arbre complet, se met à jour au fil des matchs.
+  blocks.push({ label: 'Arbre · Bracket', chunks: splitForDiscord(formatBracket(s)) });
+
   const playable = de.playableMatches(s);
   if (playable.length > 0) {
     const pairings: PairingRow[] = playable.map((m) => ({ a: slot(m.a), b: slot(m.b), note: m.bracket }));
     blocks.push({
-      label: 'Matchs à jouer — Playoff',
-      chunks: bilingualChunks(
-        formatPairings(`${FR} Playoff — Matchs à jouer`, pairings),
-        formatPairings(`${EN} Playoff — Matches to play`, pairings, { byeLabel: 'bye (auto-qualified)' }),
-      ),
+      label: 'Matchs à jouer · To play',
+      chunks: formatPairings(`${FR}${EN} Matchs à jouer · To play`, pairings, { byeLabel: 'bye (auto-qualifié · auto-qualified)' }),
     });
   }
 
+  // Rang = nombre neutre ; pas besoin de le traduire.
   const board = de.standings(s);
-  const standing = (champion: string, rank: string): StandingRow[] =>
-    board.map((r) => ({ rank: r.rank, name: r.name, detail: r.rank === 1 ? `🏆 ${champion}` : `${rank} ${r.rank}` }));
+  const standing: StandingRow[] = board.map((r) => ({
+    rank: r.rank,
+    name: r.name,
+    detail: r.rank === 1 ? '🏆 Champion' : `#${r.rank}`,
+  }));
   blocks.push({
-    label: 'Classement — Playoff',
-    chunks: bilingualChunks(
-      formatStandings(`${FR} Classement — Playoff`, standing('Champion', 'Rang')),
-      formatStandings(`${EN} Standings — Playoff`, standing('Champion', 'Rank')),
-    ),
+    label: 'Classement · Standings',
+    chunks: formatStandings(`${FR}${EN} Classement · Standings`, standing),
   });
   return blocks;
 }
