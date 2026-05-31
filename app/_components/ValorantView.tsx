@@ -342,9 +342,9 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
         <CardHeader>
           <CardTitle>Matchs — Double élimination</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1">
+        <CardContent className="space-y-5">
           {champ && (
-            <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-lg font-bold text-amber-400">
+            <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-lg font-bold text-amber-400">
               <Trophy className="size-5" /> Champion : {names.get(champ) ?? champ}
             </div>
           )}
@@ -352,41 +352,60 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
             <p className="text-sm text-muted-foreground">Aucun match pour le moment.</p>
           ) : (
             <>
-              {playable.map((m) => (
-                <MatchRow
-                  key={m.id}
-                  leadingBadge={bracketBadge(m)}
-                  a={slot(m.a)}
-                  b={slot(m.b)}
-                  state={{
-                    kind: 'pending',
-                    result: submitPlayoffResult.bind(null, t.id, m.id),
-                    forfeit: {
-                      title: `Forfait — ${slot(m.a)} vs ${slot(m.b)}`,
-                      options: [
-                        { label: `${slot(m.a)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'b') },
-                        { label: `${slot(m.b)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'a') },
-                      ],
-                    },
-                  }}
-                  scoreFields={{ a: 'a', b: 'b' }}
-                />
-              ))}
-              {played.map((m) => (
-                <MatchRow
-                  key={m.id}
-                  leadingBadge={bracketBadge(m)}
-                  a={slot(m.a)}
-                  b={slot(m.b)}
-                  state={{
-                    kind: 'played',
-                    scoreA: m.score!.a,
-                    scoreB: m.score!.b,
-                    amend: de.isAmendable(s, m.id) ? submitAmendPlayoffResult.bind(null, t.id, m.id) : undefined,
-                  }}
-                  scoreFields={{ a: 'a', b: 'b' }}
-                />
-              ))}
+              {playable.length > 0 && (
+                <section>
+                  <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    À jouer <span className="text-foreground/70">({playable.length})</span>
+                  </h3>
+                  <div className="space-y-1">
+                    {playable.map((m) => (
+                      <MatchRow
+                        key={m.id}
+                        leadingBadge={bracketBadge(m)}
+                        a={slot(m.a)}
+                        b={slot(m.b)}
+                        state={{
+                          kind: 'pending',
+                          result: submitPlayoffResult.bind(null, t.id, m.id),
+                          forfeit: {
+                            title: `Forfait — ${slot(m.a)} vs ${slot(m.b)}`,
+                            options: [
+                              { label: `${slot(m.a)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'b') },
+                              { label: `${slot(m.b)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'a') },
+                            ],
+                          },
+                        }}
+                        scoreFields={{ a: 'a', b: 'b' }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+              {played.length > 0 && (
+                <section>
+                  <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Joués <span className="text-foreground/70">({played.length})</span>
+                    <span className="ml-2 font-normal normal-case text-muted-foreground/70">— ✎ pour corriger un score</span>
+                  </h3>
+                  <div className="space-y-1">
+                    {played.map((m) => (
+                      <MatchRow
+                        key={m.id}
+                        leadingBadge={bracketBadge(m)}
+                        a={slot(m.a)}
+                        b={slot(m.b)}
+                        state={{
+                          kind: 'played',
+                          scoreA: m.score!.a,
+                          scoreB: m.score!.b,
+                          amend: de.isAmendable(s, m.id) ? submitAmendPlayoffResult.bind(null, t.id, m.id) : undefined,
+                        }}
+                        scoreFields={{ a: 'a', b: 'b' }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
             </>
           )}
         </CardContent>
