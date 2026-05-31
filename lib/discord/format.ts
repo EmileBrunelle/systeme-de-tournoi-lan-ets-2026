@@ -1,5 +1,5 @@
 // lib/discord/format.ts
-import { DISCORD_LIMIT, splitForDiscord } from './split';
+import { splitForDiscord } from './split';
 
 /** Un message Discord prêt à copier, déjà découpé en morceaux <= 2000 caractères. */
 export interface DiscordBlock {
@@ -130,18 +130,4 @@ export function formatResults(
 export function formatSchedule(title: string, items: ScheduleItem[]): string[] {
   const lines = items.map((item) => `\`${item.time}\` — ${item.label}`);
   return build(title, lines);
-}
-
-/**
- * Compose les morceaux bilingues (section FR puis section EN) pour la copie.
- * Si chaque langue tient en un seul morceau et que les deux réunis restent sous
- * la limite Discord, renvoie un unique morceau — copiable d'un coup. Sinon, garde
- * les morceaux séparés (tout le FR, puis tout l'EN).
- */
-export function bilingualChunks(fr: string[], en: string[]): string[] {
-  if (fr.length === 1 && en.length === 1) {
-    const merged = `${fr[0]}\n\n${en[0]}`;
-    if (merged.length <= DISCORD_LIMIT) return [merged];
-  }
-  return [...fr, ...en];
 }
