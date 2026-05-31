@@ -2,6 +2,8 @@ import Link from 'next/link';
 import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
 import { ensureValorantTournament, loadState } from '../_lib/repo';
+import LiveBracketImage from '../_components/LiveBracketImage';
+import AutoRefresh from '../_components/AutoRefresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,25 +13,8 @@ interface Row {
   detail?: string;
 }
 
-function rowsFor(state: NonNullable<ReturnType<typeof loadState>>): { subtitle: string; champion?: string; rows: Row[] } {
-  if (state.phase === 'swiss' || !state.playoff) {
-    return {
-      subtitle: 'Phase suisse',
-      rows: swiss.standings(state.swiss).map((r) => ({
-        rank: r.rank,
-        name: r.name,
-        detail: `${r.wins}-${r.losses}`,
-      })),
-    };
-  }
-  const board = de.standings(state.playoff);
-  const champ = de.champion(state.playoff);
-  const names = new Map(state.playoff.participants.map((p) => [p.id, p.name]));
-  return {
-    subtitle: 'Playoff',
-    champion: champ ? (names.get(champ) ?? undefined) : undefined,
-    rows: board.map((r) => ({ rank: r.rank, name: r.name })),
-  };
+function swissRows(state: NonNullable<ReturnType<typeof loadState>>): Row[] {
+  return swiss.standings(state.swiss).map((r) => ({ rank: r.rank, name: r.name, detail: `${r.wins}-${r.losses}` }));
 }
 
 export default async function ProjectorPage() {
@@ -45,14 +30,17 @@ export default async function ProjectorPage() {
     );
   }
 
-  const { subtitle, champion, rows } = rowsFor(state);
+  const isPlayoff = state.phase !== 'swiss' && !!state.playoff;
+  const champId = isPlayoff ? de.champion(state.playoff!) : null;
+  const champion = champId ? (state.playoff!.participants.find((p) => p.id === champId)?.name ?? champId) : undefined;
 
   return (
     <main data-game={t.game} className="min-h-screen px-12 py-10">
+      <AutoRefresh seconds={20} />
       <div className="flex items-end justify-between border-b border-border pb-6">
         <div>
           <h1 className="text-6xl font-bold tracking-tight">{t.name}</h1>
-          <p className="mt-2 text-3xl text-muted-foreground">{subtitle}</p>
+          <p className="mt-2 text-3xl text-muted-foreground">{isPlayoff ? 'Playoff' : 'Phase suisse'}</p>
         </div>
         <Link href="/" className="text-base text-muted-foreground hover:text-foreground">← Gestion</Link>
       </div>
@@ -63,24 +51,28 @@ export default async function ProjectorPage() {
         </div>
       )}
 
-      <table className="mt-8 w-full text-3xl">
-        <thead>
-          <tr className="border-b border-border text-left text-xl uppercase tracking-wide text-muted-foreground">
-            <th className="w-20 py-4 font-semibold">#</th>
-            <th className="py-4 font-semibold">Participant</th>
-            <th className="py-4 text-right font-semibold" />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={`${r.rank}-${r.name}`} className="border-b border-border/60">
-              <td className="py-5 tabular-nums text-muted-foreground">{r.rank}</td>
-              <td className="py-5 font-semibold">{r.name}</td>
-              <td className="py-5 text-right tabular-nums text-muted-foreground">{r.detail ?? ''}</td>
+      {isPlayoff ? (
+        <LiveBracketImage intervalMs={15000} className="mx-auto mt-8 max-h-[78vh] w-auto max-w-full rounded-xl border border-border" />
+      ) : (
+        <table className="mt-8 w-full text-3xl">
+          <thead>
+            <tr className="border-b border-border text-left text-xl uppercase tracking-wide text-muted-foreground">
+              <th className="w-20 py-4 font-semibold">#</th>
+              <th className="py-4 font-semibold">Participant</th>
+              <th className="py-4 text-right font-semibold" />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {swissRows(state).map((r) => (
+              <tr key={`${r.rank}-${r.name}`} className="border-b border-border/60">
+                <td className="py-5 tabular-nums text-muted-foreground">{r.rank}</td>
+                <td className="py-5 font-semibold">{r.name}</td>
+                <td className="py-5 text-right tabular-nums text-muted-foreground">{r.detail ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </main>
   );
 }

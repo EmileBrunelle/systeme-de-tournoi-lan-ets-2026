@@ -224,5 +224,11 @@ export function bracketImageResponse(state: DEState): ImageResponse {
     },
   };
 
-  return new ImageResponse(element as unknown as React.ReactElement, { width: 1700, height: 1300 });
+  return new ImageResponse(element as unknown as React.ReactElement, {
+    width: 1700,
+    height: 1300,
+    // L'état du tournoi change en live : jamais de cache, sinon Discord/projecteur
+    // afficheraient une braquette périmée (next/og met un cache long par défaut).
+    headers: { 'cache-control': 'no-store, must-revalidate' },
+  });
 }

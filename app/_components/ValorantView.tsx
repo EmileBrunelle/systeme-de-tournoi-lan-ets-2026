@@ -1,4 +1,4 @@
-import { Trophy, Play, Flag, FileImage } from 'lucide-react';
+import { Trophy, Play, Flag, FileImage, Download } from 'lucide-react';
 import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
 import { lanEtsValorantSchedule, saturdayEndTime, sleepGapMinutes } from '@/lib/schedule/lan-ets';
@@ -24,6 +24,7 @@ import StatusTiles from './StatusTiles';
 import TeamManager from './TeamManager';
 import ConfirmDialog from './ConfirmDialog';
 import MatchRow, { type MatchRowState } from './MatchRow';
+import LiveBracketImage from './LiveBracketImage';
 import type { TournamentWithRoster } from '../_lib/repo';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
@@ -64,18 +65,29 @@ export default function ValorantView({
 
       {/* Sous le pli — consulté moins souvent */}
       <LanEtsSchedule />
-      <DiscordPanel
-        blocks={discordBlocks(state, { now, rankById })}
-        headerAction={
-          state.phase !== 'swiss' && state.playoff ? (
+      {state.phase !== 'swiss' && state.playoff && (
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between gap-2">
+            <div className="space-y-1.5">
+              <CardTitle className="flex items-center gap-2">
+                <FileImage className="size-4 text-muted-foreground" /> Bracket à partager
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Glisse l’image dans Discord, ou clic-droit → Copier l’image. Se met à jour toute seule.
+              </p>
+            </div>
             <Button asChild variant="outline" size="sm">
-              <a href="/bracket.png" target="_blank" rel="noopener noreferrer">
-                <FileImage className="size-4" /> Image du bracket
+              <a href="/bracket.webp" download="bracket-lan-ets-2026.webp">
+                <Download className="size-4" /> Télécharger
               </a>
             </Button>
-          ) : undefined
-        }
-      />
+          </CardHeader>
+          <CardContent>
+            <LiveBracketImage className="w-full rounded-lg border border-border" />
+          </CardContent>
+        </Card>
+      )}
+      <DiscordPanel blocks={discordBlocks(state, { now, rankById })} />
       <DangerZone id={t.id} />
     </div>
   );
