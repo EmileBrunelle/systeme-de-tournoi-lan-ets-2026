@@ -306,3 +306,41 @@ describe('isAmendable', () => {
     expect(isAmendable(s, 'WB-R1-M1')).toBe(false);
   });
 });
+
+describe('placement en croix du LB (anti-revanche)', () => {
+  // Scénario conçu pour provoquer une revanche WB-R1 → LB-R2 avec un routing naïf :
+  // p1 bat p8 (M1) ; p1 perd sa demie → tombe au LB R2 ; p8 gagne son LB R1 →
+  // un routing naïf les remettrait face à face. Le placement en croix l'évite.
+  function beat(s: DEState, matchId: string, winnerId: string): DEState {
+    const m = s.matches.find((x) => x.id === matchId)!;
+    const aId = (m.a as { id: string }).id;
+    return recordResult(s, matchId, aId === winnerId ? { a: 13, b: 7 } : { a: 7, b: 13 });
+  }
+
+  it('aucun match du LB R2 ne rejoue une affiche déjà disputée en WB R1', () => {
+    let s = createDoubleElim(mkParticipants(8));
+    // WB R1 (seedOrder → M1:p1/p8, M2:p4/p5, M3:p2/p7, M4:p3/p6)
+    s = beat(s, 'WB-R1-M1', 'p1');
+    s = beat(s, 'WB-R1-M2', 'p4');
+    s = beat(s, 'WB-R1-M3', 'p2');
+    s = beat(s, 'WB-R1-M4', 'p3');
+    // LB R1
+    s = beat(s, 'LB-R1-M1', 'p8'); // p8 (perdant M1) gagne
+    s = beat(s, 'LB-R1-M2', 'p7');
+    // Demies WB : p1 et p2 tombent
+    s = beat(s, 'WB-R2-M1', 'p4'); // p1 perd
+    s = beat(s, 'WB-R2-M2', 'p3'); // p2 perd
+
+    const wbR1 = new Set(
+      s.matches
+        .filter((m) => m.bracket === 'WB' && m.round === 1)
+        .map((m) => [(m.a as { id: string }).id, (m.b as { id: string }).id].sort().join('|')),
+    );
+    const lbR2 = s.matches.filter((m) => m.bracket === 'LB' && m.round === 2 && m.a.kind === 'player' && m.b.kind === 'player');
+    expect(lbR2.length).toBeGreaterThan(0);
+    for (const m of lbR2) {
+      const pair = [(m.a as { id: string }).id, (m.b as { id: string }).id].sort().join('|');
+      expect(wbR1.has(pair)).toBe(false);
+    }
+  });
+});

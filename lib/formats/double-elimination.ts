@@ -108,10 +108,16 @@ function buildRouting(B: number, k: number): Routing {
         const side: 'a' | 'b' = i % 2 === 1 ? 'a' : 'b';
         loserTo = { matchId: `LB-R1-M${targetM}`, side };
       } else {
-        // WB R{r} loser (r>=2) -> major round LB R{2*(r-1)} side B, même i
+        // WB R{r} loser (r>=2) -> major round LB R{2*(r-1)} side B.
+        // Placement EN CROIX (index miroir) : le perdant tombe dans la moitié
+        // OPPOSÉE du LB, pour ne pas réaffronter tout de suite une équipe issue
+        // de son propre groupe WB (évite la revanche WB-R1 → LB-R2). Sur un seul
+        // match (lbCount=1) le miroir est neutre.
         const j = r - 1; // car WB-R{j+1} alimente major round LB-R{2j}
         const lbRound = 2 * j;
-        loserTo = { matchId: `LB-R${lbRound}-M${i}`, side: 'b' };
+        const lbCount = B / 2 ** (j + 1);
+        const targetM = lbCount - i + 1;
+        loserTo = { matchId: `LB-R${lbRound}-M${targetM}`, side: 'b' };
       }
 
       routing[id] = { winnerTo, loserTo };
