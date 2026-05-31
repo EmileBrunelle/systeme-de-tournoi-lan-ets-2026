@@ -158,6 +158,34 @@ function gfTeamRow(slot: DESlot, o: { names: Map<string, string>; seeds: Map<str
   };
 }
 
+/** Pied de la carte : pointage carte par carte (gagnant de chaque partie
+ *  surligné) si la série est détaillée, sinon le libellé générique. */
+function gfFooter(games: { a: number; b: number }[] | undefined) {
+  const base = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: 46, background: '#1b1a17' };
+  if (!games || games.length === 0) {
+    return { type: 'div', props: { style: { ...base, color: C.mute, fontSize: 14, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase' }, children: 'Série au meilleur de 3' } };
+  }
+  const children: unknown[] = [
+    { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 12, fontWeight: 700, letterSpacing: 2, marginRight: 12, textTransform: 'uppercase' }, children: 'Parties' } },
+  ];
+  games.forEach((g, i) => {
+    const aw = g.a > g.b;
+    if (i > 0) children.push({ type: 'div', props: { style: { display: 'flex', color: C.line, fontSize: 16, margin: '0 9px' }, children: '·' } });
+    children.push({
+      type: 'div',
+      props: {
+        style: { display: 'flex', alignItems: 'center' },
+        children: [
+          { type: 'div', props: { style: { display: 'flex', color: aw ? C.win : C.mute, fontSize: 19, fontWeight: aw ? 800 : 600 }, children: String(g.a) } },
+          { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 16, margin: '0 5px' }, children: '–' } },
+          { type: 'div', props: { style: { display: 'flex', color: aw ? C.mute : C.win, fontSize: 19, fontWeight: aw ? 600 : 800 }, children: String(g.b) } },
+        ],
+      },
+    });
+  });
+  return { type: 'div', props: { style: { ...base, padding: '0 14px' }, children } };
+}
+
 /** Carte distincte de la grande finale : bordure dorée, titre, et pied
  *  « meilleur de 3 ». Couronne le champion s'il est décidé. */
 function grandFinalCard(m: DEMatch, names: Map<string, string>, seeds: Map<string, number>, champ: string | null) {
@@ -179,7 +207,7 @@ function grandFinalCard(m: DEMatch, names: Map<string, string>, seeds: Map<strin
             children: [
               gfTeamRow(m.a, { names, seeds, isWinner: aWon, isChampion: champA, score: m.score ? m.score.a : null, top: true }),
               gfTeamRow(m.b, { names, seeds, isWinner: bWon, isChampion: champB, score: m.score ? m.score.b : null, top: false }),
-              { type: 'div', props: { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: 36, background: '#1b1a17', color: C.mute, fontSize: 14, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase' }, children: 'Série au meilleur de 3' } },
+              gfFooter(m.games),
             ],
           },
         },

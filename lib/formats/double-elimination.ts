@@ -7,7 +7,8 @@ export interface DEMatch {
   round: number; // round number within its bracket (1-based)
   a: DESlot; // home side
   b: DESlot; // away side
-  score: { a: number; b: number } | null; // null = not played
+  score: { a: number; b: number } | null; // null = not played. En série (BO3+), c'est le décompte de parties (ex. 2-1).
+  games?: { a: number; b: number }[]; // pointage carte par carte (séries BO3+) ; absent = match en une seule partie
   winner: ParticipantId | null; // null until decided
 }
 
@@ -72,6 +73,7 @@ function deepCloneState(state: DEState): DEState {
       a: { ...m.a },
       b: { ...m.b },
       score: m.score ? { ...m.score } : null,
+      games: m.games ? m.games.map((g) => ({ ...g })) : undefined,
     })),
   };
 }
