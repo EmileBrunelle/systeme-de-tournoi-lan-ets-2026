@@ -150,10 +150,13 @@ function header(champName: string | null) {
     props: {
       style: { display: 'flex', flexDirection: 'column' },
       children: [
-        { type: 'div', props: { style: { display: 'flex', alignItems: 'baseline' }, children: [
-          { type: 'div', props: { style: { display: 'flex', color: C.win, fontSize: 54, fontWeight: 800, letterSpacing: 1 }, children: 'LAN ÉTS' } },
-          { type: 'div', props: { style: { display: 'flex', color: RED, fontSize: 54, fontWeight: 800, marginLeft: 16 }, children: '2026' } },
-        ] } },
+        { type: 'div', props: { style: { display: 'flex', alignItems: 'baseline' }, children: lanLogo
+          // Le logo porte déjà « LAN ÉTS » → on n'affiche que l'année pour éviter le doublon.
+          ? [{ type: 'div', props: { style: { display: 'flex', color: RED, fontSize: 54, fontWeight: 800 }, children: '2026' } }]
+          : [
+              { type: 'div', props: { style: { display: 'flex', color: C.win, fontSize: 54, fontWeight: 800, letterSpacing: 1 }, children: 'LAN ÉTS' } },
+              { type: 'div', props: { style: { display: 'flex', color: RED, fontSize: 54, fontWeight: 800, marginLeft: 16 }, children: '2026' } },
+            ] } },
         { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 22, fontWeight: 700, letterSpacing: 8, marginTop: 6 }, children: 'VALORANT · PLAYOFF' } },
       ],
     },
