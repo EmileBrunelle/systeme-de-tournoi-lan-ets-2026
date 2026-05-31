@@ -9,7 +9,6 @@ import {
   formatStandings,
   formatResults,
   formatSchedule,
-  bilingualChunks,
   type DiscordBlock,
   type PairingRow,
   type ResultRow,
@@ -46,10 +45,9 @@ function swissBlocks(s: swiss.SwissState, now: string): DiscordBlock[] {
     const pairings: PairingRow[] = inRound.map((m) => ({ a: nm(m.home)!, b: nm(m.away) }));
     blocks.push({
       label: `Appariements — Ronde ${round}`,
-      chunks: bilingualChunks(
-        formatPairings(`${FR} Appariements — Ronde ${round}`, pairings, { byeLabel: 'bye (qualifié automatiquement)' }),
-        formatPairings(`${EN} Pairings — Round ${round}`, pairings, { byeLabel: 'bye (auto-qualified)' }),
-      ),
+      chunks: formatPairings(`${FR}${EN} Appariements · Pairings — Ronde · Round ${round}`, pairings, {
+        byeLabel: 'bye (qualifié auto · auto-qualified)',
+      }),
     });
 
     const played = inRound.filter((m) => m.score !== null && m.away !== null);
@@ -65,23 +63,16 @@ function swissBlocks(s: swiss.SwissState, now: string): DiscordBlock[] {
         }));
       blocks.push({
         label: `Résultats — Ronde ${round}`,
-        chunks: bilingualChunks(
-          formatResults(`${FR} Résultats — Ronde ${round}`, result('forfait')),
-          formatResults(`${EN} Results — Round ${round}`, result('forfeit')),
-        ),
+        chunks: formatResults(`${FR}${EN} Résultats · Results — Ronde · Round ${round}`, result('forfait · forfeit')),
       });
     }
   }
 
   const board = swiss.standings(s);
-  const standing = (label: string): StandingRow[] =>
-    board.map((r) => ({ rank: r.rank, name: r.name, detail: `${r.wins}-${r.losses} (${label} ${r.tiebreak})` }));
+  const standing: StandingRow[] = board.map((r) => ({ rank: r.rank, name: r.name, detail: `${r.wins}-${r.losses} (${r.tiebreak})` }));
   blocks.push({
     label: 'Classement — Phase suisse',
-    chunks: bilingualChunks(
-      formatStandings(`${FR} Classement — Phase suisse`, standing("bris d'égalité")),
-      formatStandings(`${EN} Standings — Swiss stage`, standing('tiebreaker')),
-    ),
+    chunks: formatStandings(`${FR}${EN} Classement · Standings — phase suisse · Swiss (bris d'égalité · tiebreak)`, standing),
   });
 
   // Horaire estimé ancré sur l'heure réelle (`now`) : on ne projette que les
@@ -100,15 +91,9 @@ function swissBlocks(s: swiss.SwissState, now: string): DiscordBlock[] {
     );
     blocks.push({
       label: 'Horaire estimé',
-      chunks: bilingualChunks(
-        formatSchedule(
-          `${FR} Horaire estimé — à partir de ${now}`,
-          sched.map((r, i) => ({ time: `J${r.day} ${r.start}`, label: `Ronde ${upcoming[i].round} (${r.matches} matchs)` })),
-        ),
-        formatSchedule(
-          `${EN} Estimated schedule — from ${now}`,
-          sched.map((r, i) => ({ time: `D${r.day} ${r.start}`, label: `Round ${upcoming[i].round} (${r.matches} matches)` })),
-        ),
+      chunks: formatSchedule(
+        `${FR}${EN} Horaire estimé · Estimated schedule — ${now}`,
+        sched.map((r, i) => ({ time: `J${r.day} ${r.start}`, label: `Ronde · Round ${upcoming[i].round} (${r.matches} matchs · matches)` })),
       ),
     });
   }
@@ -122,8 +107,7 @@ function swissBlocks(s: swiss.SwissState, now: string): DiscordBlock[] {
 // portent les deux langues (« FR · EN »). On évite la duplication intégrale
 // FR-puis-EN — cf. le récap de fin de manche.
 function deBlocks(s: de.DEState): DiscordBlock[] {
-  const names = nameMap(s.participants);
-  const slot = (x: de.DESlot) => (x.kind === 'player' ? (names.get(x.id) ?? x.id) : x.kind === 'bye' ? 'bye' : 'à venir');
+  const slot = (x: de.DESlot) => de.slotName(s, x);
   const blocks: DiscordBlock[] = [];
 
   // L'arbre visuel est servi en PNG via /bracket.png (bouton dans la console),

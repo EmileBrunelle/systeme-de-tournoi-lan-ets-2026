@@ -8,6 +8,7 @@ import {
   isComplete,
   champion,
   standings,
+  slotName,
   type DEState,
   type DEMatch,
 } from './double-elimination';
@@ -237,5 +238,15 @@ describe('immutabilité et erreurs', () => {
     // ce match a une slot bye et un winner déjà décidé -> doit throw.
     expect(autoAdvanced).toBeDefined();
     expect(() => recordResult(state, autoAdvanced!.id, { a: 13, b: 0 })).toThrow();
+  });
+});
+
+describe('slotName', () => {
+  it('résout un joueur en son nom, sinon « bye » / « à venir »', () => {
+    const s = createDoubleElim(mkParticipants(4)); // M1: seed1 vs seed4
+    const m1 = s.matches.find((m) => m.id === 'WB-R1-M1')!;
+    expect(slotName(s, m1.a)).toBe('P1'); // joueur résolu
+    expect(slotName(s, { kind: 'bye' })).toBe('bye');
+    expect(slotName(s, { kind: 'tbd' })).toBe('à venir'); // slot non encore déterminé
   });
 });

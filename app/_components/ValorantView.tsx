@@ -23,6 +23,7 @@ import StatusTiles from './StatusTiles';
 import TeamManager from './TeamManager';
 import ConfirmDialog from './ConfirmDialog';
 import ForfeitDialog from './ForfeitDialog';
+import ScoreForm from './ScoreForm';
 import type { TournamentWithRoster } from '../_lib/repo';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
@@ -173,26 +174,23 @@ function SwissDashboard({ t, state }: { t: TournamentWithRoster; state: Valorant
                             <Pencil className="ml-1 size-3 opacity-50 group-open:opacity-100" />
                           </Badge>
                         </summary>
-                        <form
+                        <ScoreForm
                           action={submitAmendSwissResult.bind(null, t.id, m.id)}
-                          autoComplete="off"
+                          a={{ name: 'home', label: 'Score domicile corrigé', default: m.score.home }}
+                          b={{ name: 'away', label: 'Score visiteur corrigé', default: m.score.away }}
+                          submitLabel="Corriger"
                           className="mt-2 flex items-center gap-1.5"
-                        >
-                          <Input type="number" name="home" min={0} required autoComplete="off" defaultValue={m.score.home} aria-label="Score domicile corrigé" className="h-9 w-16" />
-                          <span className="text-muted-foreground">–</span>
-                          <Input type="number" name="away" min={0} required autoComplete="off" defaultValue={m.score.away} aria-label="Score visiteur corrigé" className="h-9 w-16" />
-                          <Button type="submit" size="sm" variant="secondary">Corriger</Button>
-                        </form>
+                        />
                       </details>
                     )
                   ) : (
                     <>
-                      <form action={submitSwissResult.bind(null, t.id, m.id)} autoComplete="off" className="flex items-center gap-1.5">
-                        <Input type="number" name="home" min={0} required autoComplete="off" defaultValue="" aria-label="Score domicile" className="h-9 w-16" />
-                        <span className="text-muted-foreground">–</span>
-                        <Input type="number" name="away" min={0} required autoComplete="off" defaultValue="" aria-label="Score visiteur" className="h-9 w-16" />
-                        <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
-                      </form>
+                      <ScoreForm
+                        action={submitSwissResult.bind(null, t.id, m.id)}
+                        a={{ name: 'home', label: 'Score domicile' }}
+                        b={{ name: 'away', label: 'Score visiteur' }}
+                        submitLabel="Enregistrer"
+                      />
                       <ForfeitDialog
                         title={`Forfait — ${nm(m.home)} vs ${nm(m.away)}`}
                         options={[
@@ -343,8 +341,7 @@ const BRACKET_LABEL: Record<string, string> = { WB: 'Winner', LB: 'Loser', GF: '
 function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: ValorantState }) {
   const s = state.playoff!;
   const names = new Map(s.participants.map((p) => [p.id, p.name]));
-  const slot = (x: de.DESlot) =>
-    x.kind === 'player' ? (names.get(x.id) ?? x.id) : x.kind === 'bye' ? 'bye' : 'à venir';
+  const slot = (x: de.DESlot) => de.slotName(s, x);
   const playable = de.playableMatches(s);
   const champ = de.champion(s);
   const board = de.standings(s);
@@ -381,12 +378,12 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
                   <span className="font-medium">{slot(m.b)}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <form action={submitPlayoffResult.bind(null, t.id, m.id)} autoComplete="off" className="flex items-center gap-1.5">
-                    <Input type="number" name="a" min={0} required autoComplete="off" defaultValue="" aria-label="Score A" className="h-9 w-16" />
-                    <span className="text-muted-foreground">–</span>
-                    <Input type="number" name="b" min={0} required autoComplete="off" defaultValue="" aria-label="Score B" className="h-9 w-16" />
-                    <Button type="submit" size="sm" variant="secondary">Enregistrer</Button>
-                  </form>
+                  <ScoreForm
+                    action={submitPlayoffResult.bind(null, t.id, m.id)}
+                    a={{ name: 'a', label: 'Score A' }}
+                    b={{ name: 'b', label: 'Score B' }}
+                    submitLabel="Enregistrer"
+                  />
                   <ForfeitDialog
                     title={`Forfait — ${slot(m.a)} vs ${slot(m.b)}`}
                     options={[

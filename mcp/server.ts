@@ -59,8 +59,8 @@ function nameOf(state: runner.ValorantState, id: string): string {
 }
 
 function slotName(state: runner.ValorantState, s: de.DESlot): string {
-  if (s.kind === 'player') return state.playoff?.participants.find((p) => p.id === s.id)?.name ?? s.id;
-  return s.kind === 'bye' ? 'bye' : 'à venir';
+  // Résolveur partagé avec la console et le panneau Discord (lib/formats).
+  return state.playoff ? de.slotName(state.playoff, s) : s.kind === 'bye' ? 'bye' : 'à venir';
 }
 
 // ─── Définition des outils ─────────────────────────────────────────────────

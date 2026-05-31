@@ -341,6 +341,16 @@ export function playableMatches(state: DEState): DEMatch[] {
   );
 }
 
+/**
+ * Nom affichable d'une slot : nom du joueur s'il est déterminé, sinon « bye » ou
+ * « à venir ». Source unique partagée par la console, le panneau Discord et le
+ * serveur MCP (évite trois copies du même `kind === 'player' ? …`).
+ */
+export function slotName(state: DEState, slot: DESlot): string {
+  if (slot.kind === 'player') return state.participants.find((p) => p.id === slot.id)?.name ?? slot.id;
+  return slot.kind === 'bye' ? 'bye' : 'à venir';
+}
+
 function decidingMatch(state: DEState): DEMatch | undefined {
   const gf2 = findMatch(state, 'GF-2');
   if (gf2) return gf2;
