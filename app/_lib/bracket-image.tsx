@@ -30,7 +30,10 @@ const CONN_W = 34;
 const TITLE_H = 30; // hauteur du libellé de colonne (aligne les connecteurs)
 const WB_H = 600;
 const LB_H = 280;
-const GF_W = 420; // carte « grande finale » plus large que les boîtes ordinaires
+const GF_W = 520; // carte « grande finale » plus large que les boîtes ordinaires
+const GF_SEED_W = 32; // pastille de tête de série
+const GF_GAME_W = 42; // colonne de pointage par carte (C1, C2, …)
+const GF_SERIES_W = 54; // colonne du décompte de série
 
 /** Logo depuis public/<file> en data URI, ou null si absent (→ fallback wordmark). */
 function logoDataUri(file: string): string | null {
@@ -123,31 +126,56 @@ function connectorColumn(prevN: number, height: number) {
   };
 }
 
-/** Rangée d'équipe pour la grande finale : plus grande que `teamRow`, avec
- *  pastille « CHAMPION » dorée sur le gagnant du tournoi. */
-function gfTeamRow(slot: DESlot, o: { names: Map<string, string>; seeds: Map<string, number>; isWinner: boolean; isChampion: boolean; score: number | null; top: boolean }) {
+/** Une cellule de score (carte ou série), largeur fixe → colonnes alignées avec
+ *  l'en-tête. `strong` met en évidence le gagnant. */
+function gfCell(text: string, width: number, color: string, strong: boolean, big = false) {
+  return { type: 'div', props: { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width, color, fontSize: big ? 28 : 20, fontWeight: strong ? 800 : 600 }, children: text } };
+}
+
+/** En-tête de colonnes de la carte : « C1 C2 … » + « SÉRIE », aligné sur les
+ *  rangées d'équipe (mêmes largeurs fixes). */
+function gfColumnHeader(nGames: number) {
+  const children: unknown[] = [
+    { type: 'div', props: { style: { display: 'flex', width: GF_SEED_W, marginRight: 12 }, children: '' } },
+    { type: 'div', props: { style: { display: 'flex', flexGrow: 1 }, children: '' } },
+  ];
+  const lbl = { color: C.mute, fontSize: 12, fontWeight: 700, letterSpacing: 1 };
+  for (let i = 0; i < nGames; i++) children.push({ type: 'div', props: { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: GF_GAME_W, ...lbl }, children: `C${i + 1}` } });
+  children.push({ type: 'div', props: { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: GF_SERIES_W, ...lbl }, children: 'SÉRIE' } });
+  return { type: 'div', props: { style: { display: 'flex', alignItems: 'center', height: 26, padding: '0 16px' }, children } };
+}
+
+/** Rangée d'équipe de la grande finale : pastille de série, nom, puis le
+ *  pointage de CETTE équipe carte par carte (gagnant de chaque carte surligné)
+ *  et son décompte de série. Les scores sont sur la ligne de l'équipe → aucune
+ *  ambiguïté sur « à qui » est le score. */
+function gfTeamRow(slot: DESlot, o: { names: Map<string, string>; seeds: Map<string, number>; isWinner: boolean; isChampion: boolean; series: number | null; side: 'a' | 'b'; games: { a: number; b: number }[]; top: boolean }) {
   const tbd = slot.kind === 'tbd';
   const bye = slot.kind === 'bye';
   const name = slot.kind === 'player' ? (o.names.get(slot.id) ?? slot.id) : tbd ? 'À venir' : '—';
   const seed = slot.kind === 'player' ? o.seeds.get(slot.id) : undefined;
   const accent = o.isChampion ? GOLD : RED;
-  const children = [
+  const children: unknown[] = [
     seed
-      ? { type: 'div', props: { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 30, marginRight: 12, borderRadius: 6, background: o.isWinner ? accent : C.seedBg, color: o.isWinner ? '#161719' : C.mute, fontSize: 18, fontWeight: 700 }, children: String(seed) } }
-      : { type: 'div', props: { style: { display: 'flex', width: 32, marginRight: 12 }, children: '' } },
-    { type: 'div', props: { style: { display: 'flex', flexGrow: 1, color: tbd || bye ? C.mute : o.isWinner ? C.win : C.text, fontSize: 25, fontWeight: o.isWinner ? 800 : 600, fontStyle: tbd ? 'italic' : 'normal' }, children: name } },
-    o.isChampion
-      ? { type: 'div', props: { style: { display: 'flex', alignItems: 'center', padding: '4px 10px', marginRight: 14, borderRadius: 6, background: GOLD, color: '#161719', fontSize: 13, fontWeight: 800, letterSpacing: 2 }, children: 'CHAMPION' } }
-      : null,
-    { type: 'div', props: { style: { display: 'flex', color: o.isWinner ? accent : C.mute, fontSize: 28, fontWeight: 800 }, children: o.score === null ? '' : String(o.score) } },
-  ].filter(Boolean);
+      ? { type: 'div', props: { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: GF_SEED_W, height: 30, marginRight: 12, borderRadius: 6, background: o.isWinner ? accent : C.seedBg, color: o.isWinner ? '#161719' : C.mute, fontSize: 18, fontWeight: 700 }, children: String(seed) } }
+      : { type: 'div', props: { style: { display: 'flex', width: GF_SEED_W, marginRight: 12 }, children: '' } },
+    { type: 'div', props: { style: { display: 'flex', flexGrow: 1, color: tbd || bye ? C.mute : o.isWinner ? C.win : C.text, fontSize: 23, fontWeight: o.isWinner ? 800 : 600, fontStyle: tbd ? 'italic' : 'normal', whiteSpace: 'nowrap' }, children: name } },
+  ];
+  // Pointage carte par carte de cette équipe (le gagnant de la carte est surligné).
+  for (const g of o.games) {
+    const mine = o.side === 'a' ? g.a : g.b;
+    const wonGame = o.side === 'a' ? g.a > g.b : g.b > g.a;
+    children.push(gfCell(String(mine), GF_GAME_W, wonGame ? C.win : C.mute, wonGame));
+  }
+  // Décompte de série (grand, doré pour le gagnant).
+  children.push(gfCell(o.series === null ? '' : String(o.series), GF_SERIES_W, o.isWinner ? accent : C.mute, true, true));
   return {
     type: 'div',
     props: {
       style: {
         display: 'flex',
         alignItems: 'center',
-        height: 56,
+        height: 58,
         padding: '0 16px',
         borderBottom: o.top ? `1px solid ${C.line}` : 'none',
         borderLeft: o.isWinner ? `5px solid ${accent}` : '5px solid transparent',
@@ -158,42 +186,43 @@ function gfTeamRow(slot: DESlot, o: { names: Map<string, string>; seeds: Map<str
   };
 }
 
-/** Pied de la carte : pointage carte par carte (gagnant de chaque partie
- *  surligné) si la série est détaillée, sinon le libellé générique. */
-function gfFooter(games: { a: number; b: number }[] | undefined) {
-  const base = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: 46, background: '#1b1a17' };
-  if (!games || games.length === 0) {
-    return { type: 'div', props: { style: { ...base, color: C.mute, fontSize: 14, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase' }, children: 'Série au meilleur de 3' } };
-  }
-  const children: unknown[] = [
-    { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 12, fontWeight: 700, letterSpacing: 2, marginRight: 12, textTransform: 'uppercase' }, children: 'Parties' } },
-  ];
-  games.forEach((g, i) => {
-    const aw = g.a > g.b;
-    if (i > 0) children.push({ type: 'div', props: { style: { display: 'flex', color: C.line, fontSize: 16, margin: '0 9px' }, children: '·' } });
-    children.push({
+/** Bandeau de pied : couronne le champion (barre dorée pleine) une fois la
+ *  finale décidée, sinon rappelle le format de la série. */
+function gfBanner(champName: string | null, format: string) {
+  if (champName) {
+    return {
       type: 'div',
       props: {
-        style: { display: 'flex', alignItems: 'center' },
+        style: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: 48, background: GOLD },
         children: [
-          { type: 'div', props: { style: { display: 'flex', color: aw ? C.win : C.mute, fontSize: 19, fontWeight: aw ? 800 : 600 }, children: String(g.a) } },
-          { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 16, margin: '0 5px' }, children: '–' } },
-          { type: 'div', props: { style: { display: 'flex', color: aw ? C.mute : C.win, fontSize: 19, fontWeight: aw ? 600 : 800 }, children: String(g.b) } },
+          { type: 'div', props: { style: { display: 'flex', color: '#161719', fontSize: 15, fontWeight: 800, letterSpacing: 4, marginRight: 12 }, children: 'CHAMPION' } },
+          { type: 'div', props: { style: { display: 'flex', color: '#161719', fontSize: 22, fontWeight: 800 }, children: champName } },
         ],
       },
-    });
-  });
-  return { type: 'div', props: { style: { ...base, padding: '0 14px' }, children } };
+    };
+  }
+  return { type: 'div', props: { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: 44, background: '#1b1a17', color: C.mute, fontSize: 14, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase' }, children: format } };
 }
 
-/** Carte distincte de la grande finale : bordure dorée, titre, et pied
- *  « meilleur de 3 ». Couronne le champion s'il est décidé. */
+/** Carte distincte de la grande finale : bordure dorée, en-tête de colonnes,
+ *  pointage par carte sur chaque ligne d'équipe, bandeau champion. */
 function grandFinalCard(m: DEMatch, names: Map<string, string>, seeds: Map<string, number>, champ: string | null) {
   const aWon = !!m.winner && m.a.kind === 'player' && m.a.id === m.winner;
   const bWon = !!m.winner && m.b.kind === 'player' && m.b.id === m.winner;
   const champA = aWon && m.a.kind === 'player' && m.a.id === champ;
   const champB = bWon && m.b.kind === 'player' && m.b.id === champ;
   const decided = !!m.winner;
+  const games = m.games ?? [];
+  const champName = decided && champ ? (names.get(champ) ?? champ) : null;
+
+  const cardChildren: unknown[] = [];
+  if (games.length) cardChildren.push(gfColumnHeader(games.length));
+  cardChildren.push(
+    gfTeamRow(m.a, { names, seeds, isWinner: aWon, isChampion: champA, series: m.score ? m.score.a : null, side: 'a', games, top: true }),
+    gfTeamRow(m.b, { names, seeds, isWinner: bWon, isChampion: champB, series: m.score ? m.score.b : null, side: 'b', games, top: false }),
+    gfBanner(champName, 'Série au meilleur de 3'),
+  );
+
   return {
     type: 'div',
     props: {
@@ -204,11 +233,7 @@ function grandFinalCard(m: DEMatch, names: Map<string, string>, seeds: Map<strin
           type: 'div',
           props: {
             style: { display: 'flex', flexDirection: 'column', width: GF_W, border: `3px solid ${GOLD}`, borderRadius: 12, background: decided ? '#221c0c' : C.panel, overflow: 'hidden' },
-            children: [
-              gfTeamRow(m.a, { names, seeds, isWinner: aWon, isChampion: champA, score: m.score ? m.score.a : null, top: true }),
-              gfTeamRow(m.b, { names, seeds, isWinner: bWon, isChampion: champB, score: m.score ? m.score.b : null, top: false }),
-              gfFooter(m.games),
-            ],
+            children: cardChildren,
           },
         },
       ],
@@ -345,7 +370,7 @@ export function bracketImageResponse(state: DEState): ImageResponse {
   };
 
   return new ImageResponse(element as unknown as React.ReactElement, {
-    width: 2120,
+    width: 2220,
     height: 1300,
     // L'état du tournoi change en live : jamais de cache, sinon Discord/projecteur
     // afficheraient une braquette périmée (next/og met un cache long par défaut).
