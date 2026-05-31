@@ -30,6 +30,7 @@ const CONN_W = 34;
 const TITLE_H = 30; // hauteur du libellé de colonne (aligne les connecteurs)
 const WB_H = 600;
 const LB_H = 280;
+const GF_W = 420; // carte « grande finale » plus large que les boîtes ordinaires
 
 /** Logo depuis public/<file> en data URI, ou null si absent (→ fallback wordmark). */
 function logoDataUri(file: string): string | null {
@@ -122,6 +123,83 @@ function connectorColumn(prevN: number, height: number) {
   };
 }
 
+/** Rangée d'équipe pour la grande finale : plus grande que `teamRow`, avec
+ *  pastille « CHAMPION » dorée sur le gagnant du tournoi. */
+function gfTeamRow(slot: DESlot, o: { names: Map<string, string>; seeds: Map<string, number>; isWinner: boolean; isChampion: boolean; score: number | null; top: boolean }) {
+  const tbd = slot.kind === 'tbd';
+  const bye = slot.kind === 'bye';
+  const name = slot.kind === 'player' ? (o.names.get(slot.id) ?? slot.id) : tbd ? 'À venir' : '—';
+  const seed = slot.kind === 'player' ? o.seeds.get(slot.id) : undefined;
+  const accent = o.isChampion ? GOLD : RED;
+  const children = [
+    seed
+      ? { type: 'div', props: { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 30, marginRight: 12, borderRadius: 6, background: o.isWinner ? accent : C.seedBg, color: o.isWinner ? '#161719' : C.mute, fontSize: 18, fontWeight: 700 }, children: String(seed) } }
+      : { type: 'div', props: { style: { display: 'flex', width: 32, marginRight: 12 }, children: '' } },
+    { type: 'div', props: { style: { display: 'flex', flexGrow: 1, color: tbd || bye ? C.mute : o.isWinner ? C.win : C.text, fontSize: 25, fontWeight: o.isWinner ? 800 : 600, fontStyle: tbd ? 'italic' : 'normal' }, children: name } },
+    o.isChampion
+      ? { type: 'div', props: { style: { display: 'flex', alignItems: 'center', padding: '4px 10px', marginRight: 14, borderRadius: 6, background: GOLD, color: '#161719', fontSize: 13, fontWeight: 800, letterSpacing: 2 }, children: 'CHAMPION' } }
+      : null,
+    { type: 'div', props: { style: { display: 'flex', color: o.isWinner ? accent : C.mute, fontSize: 28, fontWeight: 800 }, children: o.score === null ? '' : String(o.score) } },
+  ].filter(Boolean);
+  return {
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        height: 56,
+        padding: '0 16px',
+        borderBottom: o.top ? `1px solid ${C.line}` : 'none',
+        borderLeft: o.isWinner ? `5px solid ${accent}` : '5px solid transparent',
+        background: o.isWinner ? (o.isChampion ? '#2c2410' : C.panelWin) : 'transparent',
+      },
+      children,
+    },
+  };
+}
+
+/** Carte distincte de la grande finale : bordure dorée, titre, et pied
+ *  « meilleur de 3 ». Couronne le champion s'il est décidé. */
+function grandFinalCard(m: DEMatch, names: Map<string, string>, seeds: Map<string, number>, champ: string | null) {
+  const aWon = !!m.winner && m.a.kind === 'player' && m.a.id === m.winner;
+  const bWon = !!m.winner && m.b.kind === 'player' && m.b.id === m.winner;
+  const champA = aWon && m.a.kind === 'player' && m.a.id === champ;
+  const champB = bWon && m.b.kind === 'player' && m.b.id === champ;
+  const decided = !!m.winner;
+  return {
+    type: 'div',
+    props: {
+      style: { display: 'flex', flexDirection: 'column' },
+      children: [
+        { type: 'div', props: { style: { display: 'flex', height: TITLE_H, color: GOLD, fontSize: 17, fontWeight: 800, letterSpacing: 3, textTransform: 'uppercase' }, children: 'Grande finale' } },
+        {
+          type: 'div',
+          props: {
+            style: { display: 'flex', flexDirection: 'column', width: GF_W, border: `3px solid ${GOLD}`, borderRadius: 12, background: decided ? '#221c0c' : C.panel, overflow: 'hidden' },
+            children: [
+              gfTeamRow(m.a, { names, seeds, isWinner: aWon, isChampion: champA, score: m.score ? m.score.a : null, top: true }),
+              gfTeamRow(m.b, { names, seeds, isWinner: bWon, isChampion: champB, score: m.score ? m.score.b : null, top: false }),
+              { type: 'div', props: { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: 36, background: '#1b1a17', color: C.mute, fontSize: 14, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase' }, children: 'Série au meilleur de 3' } },
+            ],
+          },
+        },
+      ],
+    },
+  };
+}
+
+/** Connecteur en accolade reliant les finales W et L (à gauche) à la carte de
+ *  grande finale (à droite) : lignes haut/bas + montant droit. */
+function finalConnector(height: number) {
+  return {
+    type: 'div',
+    props: {
+      style: { display: 'flex', alignItems: 'center', marginLeft: COL_GAP, marginRight: COL_GAP },
+      children: [{ type: 'div', props: { style: { display: 'flex', width: CONN_W, height, borderTop: `2px solid ${C.line}`, borderBottom: `2px solid ${C.line}`, borderRight: `2px solid ${C.line}` }, children: '' } }],
+    },
+  };
+}
+
 function sectionLabel(text: string, color: string) {
   return {
     type: 'div',
@@ -135,7 +213,7 @@ function sectionLabel(text: string, color: string) {
   };
 }
 
-function header(champName: string | null) {
+function header() {
   // Texte blanc d'abord (lisible sur fond sombre), repli sur la version foncée puis le wordmark.
   const lanLogo = logoDataUri('lan-ets-text-white.png') ?? logoDataUri('lan-ets.png');
   const valLogo = logoDataUri('valorant.png');
@@ -163,14 +241,11 @@ function header(champName: string | null) {
     },
   });
 
-  const right = champName
-    ? { type: 'div', props: { style: { display: 'flex', alignItems: 'center', padding: '12px 22px', borderRadius: 10, background: '#2a2410', border: `2px solid ${GOLD}` }, children: [
-        { type: 'div', props: { style: { display: 'flex', color: GOLD, fontSize: 16, fontWeight: 800, letterSpacing: 3, marginRight: 14 }, children: 'CHAMPION' } },
-        { type: 'div', props: { style: { display: 'flex', color: C.win, fontSize: 24, fontWeight: 800 }, children: champName } },
-      ] } }
-    : valLogo
-      ? { type: 'img', props: { src: valLogo, style: { height: 56 } } }
-      : { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 19, fontWeight: 600 }, children: 'Double élimination · 2 défaites = éliminé' } };
+  // Logo Valorant toujours présent à droite (le champion est couronné dans la
+  // carte de grande finale, plus dans l'en-tête).
+  const right = valLogo
+    ? { type: 'img', props: { src: valLogo, style: { height: 64 } } }
+    : { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 19, fontWeight: 600 }, children: 'Double élimination · 2 défaites = éliminé' } };
 
   return {
     type: 'div',
@@ -185,7 +260,6 @@ export function bracketImageResponse(state: DEState): ImageResponse {
   const names = new Map(state.participants.map((p) => [p.id, p.name]));
   const seeds = new Map(state.participants.map((p) => [p.id, p.seed]));
   const champ = champion(state);
-  const champName = champ ? (names.get(champ) ?? champ) : null;
 
   const byBR = (bracket: 'WB' | 'LB' | 'GF', round: number) => state.matches.filter((m) => m.bracket === bracket && m.round === round);
   const maxR = (bracket: 'WB' | 'LB') => state.matches.filter((m) => m.bracket === bracket).reduce((mx, m) => Math.max(mx, m.round), 0);
@@ -201,7 +275,6 @@ export function bracketImageResponse(state: DEState): ImageResponse {
     if (r < wbMax && matches.length >= 2) wbRow.push(connectorColumn(matches.length, WB_H));
   }
   const gf = byBR('GF', 1);
-  if (gf.length) wbRow.push(column('Grande finale', gf, names, seeds, champ, WB_H));
 
   // Loser bracket : structure entrelacée (pas un arbre binaire) → colonnes simples.
   const lbRow = [];
@@ -210,12 +283,13 @@ export function bracketImageResponse(state: DEState): ImageResponse {
     lbRow.push(column(t, byBR('LB', r), names, seeds, champ, LB_H));
   }
 
-  const element = {
+  // Pile des deux brackets (gauche) ; la grande finale est centrée à droite et
+  // reliée aux finales W/L par un connecteur en accolade.
+  const bracketsStack = {
     type: 'div',
     props: {
-      style: { display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: C.bg, padding: 48, fontFamily: 'Geist, sans-serif' },
+      style: { display: 'flex', flexDirection: 'column' },
       children: [
-        header(champName),
         sectionLabel('Bracket gagnant · Winners', RED),
         { type: 'div', props: { style: { display: 'flex' }, children: wbRow } },
         sectionLabel('Bracket des perdants · Losers', GOLD),
@@ -224,8 +298,26 @@ export function bracketImageResponse(state: DEState): ImageResponse {
     },
   };
 
+  const mainArea = {
+    type: 'div',
+    props: {
+      style: { display: 'flex', alignItems: 'center' },
+      children: gf.length
+        ? [bracketsStack, finalConnector(360), grandFinalCard(gf[0], names, seeds, champ)]
+        : [bracketsStack],
+    },
+  };
+
+  const element = {
+    type: 'div',
+    props: {
+      style: { display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: C.bg, padding: 48, fontFamily: 'Geist, sans-serif' },
+      children: [header(), mainArea],
+    },
+  };
+
   return new ImageResponse(element as unknown as React.ReactElement, {
-    width: 1700,
+    width: 2120,
     height: 1300,
     // L'état du tournoi change en live : jamais de cache, sinon Discord/projecteur
     // afficheraient une braquette périmée (next/og met un cache long par défaut).
