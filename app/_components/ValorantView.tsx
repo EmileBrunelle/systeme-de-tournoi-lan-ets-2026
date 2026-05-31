@@ -352,8 +352,16 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
   return (
     <div className="grid items-start gap-6 lg:grid-cols-3">
       <Card className="lg:col-span-2">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle>Matchs jouables — Double élimination</CardTitle>
+          <a
+            href="/bracket.png"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 text-sm font-medium text-primary hover:underline"
+          >
+            🖼️ Image du bracket
+          </a>
         </CardHeader>
         <CardContent className="space-y-1">
           {champ && (

@@ -16,9 +16,7 @@ import {
   type StandingRow,
 } from '@/lib/discord/format';
 import { roundRecap, type RecapOptions } from '@/lib/discord/recap';
-import { formatBracket } from '@/lib/discord/bracket';
 import { estimateSchedule } from '@/lib/schedule/estimate';
-import { splitForDiscord } from '@/lib/discord/split';
 import type { RunnerState } from '@/lib/runtime/runner';
 
 export type { DiscordBlock };
@@ -128,9 +126,8 @@ function deBlocks(s: de.DEState): DiscordBlock[] {
   const slot = (x: de.DESlot) => (x.kind === 'player' ? (names.get(x.id) ?? x.id) : x.kind === 'bye' ? 'bye' : 'à venir');
   const blocks: DiscordBlock[] = [];
 
-  // Arbre complet, se met à jour au fil des matchs.
-  blocks.push({ label: 'Arbre · Bracket', chunks: splitForDiscord(formatBracket(s)) });
-
+  // L'arbre visuel est servi en PNG via /bracket.png (bouton dans la console),
+  // bien plus lisible qu'un arbre texte. Ici on garde les blocs texte compacts.
   const playable = de.playableMatches(s);
   if (playable.length > 0) {
     const pairings: PairingRow[] = playable.map((m) => ({ a: slot(m.a), b: slot(m.b), note: m.bracket }));
