@@ -11,6 +11,7 @@ import {
   generateSwissRound,
   resetTournament,
   startPlayoff,
+  submitAmendPlayoffResult,
   submitAmendSwissResult,
   submitPlayoffResult,
   submitStart,
@@ -329,12 +330,17 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
   const playable = de.playableMatches(s);
   const champ = de.champion(s);
   const board = de.standings(s);
+  // Matchs déjà joués (vraies parties) — affichés pour permettre la correction.
+  const played = s.matches.filter((m) => m.score !== null && m.winner !== null && m.a.kind === 'player' && m.b.kind === 'player');
+  const bracketBadge = (m: de.DEMatch) => (
+    <Badge variant="outline" className="shrink-0 text-muted-foreground">{BRACKET_LABEL[m.bracket] ?? m.bracket}</Badge>
+  );
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-3">
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle>Matchs jouables — Double élimination</CardTitle>
+          <CardTitle>Matchs — Double élimination</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
           {champ && (
@@ -342,31 +348,46 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
               <Trophy className="size-5" /> Champion : {names.get(champ) ?? champ}
             </div>
           )}
-          {playable.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{champ ? 'Tournoi terminé.' : 'Aucun match jouable pour le moment.'}</p>
+          {playable.length === 0 && played.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun match pour le moment.</p>
           ) : (
-            playable.map((m) => (
-              <MatchRow
-                key={m.id}
-                leadingBadge={
-                  <Badge variant="outline" className="shrink-0 text-muted-foreground">{BRACKET_LABEL[m.bracket] ?? m.bracket}</Badge>
-                }
-                a={slot(m.a)}
-                b={slot(m.b)}
-                state={{
-                  kind: 'pending',
-                  result: submitPlayoffResult.bind(null, t.id, m.id),
-                  forfeit: {
-                    title: `Forfait — ${slot(m.a)} vs ${slot(m.b)}`,
-                    options: [
-                      { label: `${slot(m.a)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'b') },
-                      { label: `${slot(m.b)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'a') },
-                    ],
-                  },
-                }}
-                scoreFields={{ a: 'a', b: 'b' }}
-              />
-            ))
+            <>
+              {playable.map((m) => (
+                <MatchRow
+                  key={m.id}
+                  leadingBadge={bracketBadge(m)}
+                  a={slot(m.a)}
+                  b={slot(m.b)}
+                  state={{
+                    kind: 'pending',
+                    result: submitPlayoffResult.bind(null, t.id, m.id),
+                    forfeit: {
+                      title: `Forfait — ${slot(m.a)} vs ${slot(m.b)}`,
+                      options: [
+                        { label: `${slot(m.a)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'b') },
+                        { label: `${slot(m.b)} déclare forfait`, action: concedePlayoffMatch.bind(null, t.id, m.id, 'a') },
+                      ],
+                    },
+                  }}
+                  scoreFields={{ a: 'a', b: 'b' }}
+                />
+              ))}
+              {played.map((m) => (
+                <MatchRow
+                  key={m.id}
+                  leadingBadge={bracketBadge(m)}
+                  a={slot(m.a)}
+                  b={slot(m.b)}
+                  state={{
+                    kind: 'played',
+                    scoreA: m.score!.a,
+                    scoreB: m.score!.b,
+                    amend: de.isAmendable(s, m.id) ? submitAmendPlayoffResult.bind(null, t.id, m.id) : undefined,
+                  }}
+                  scoreFields={{ a: 'a', b: 'b' }}
+                />
+              ))}
+            </>
           )}
         </CardContent>
       </Card>

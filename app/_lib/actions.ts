@@ -147,6 +147,17 @@ export async function recordPlayoffResult(id: string, matchId: string, a: number
   refresh();
 }
 
+/** Corrige le score d'un match playoff déjà joué (parité avec la suisse). */
+export async function amendPlayoffResult(id: string, matchId: string, a: number, b: number) {
+  const t = await getTournament(id);
+  const state = t && loadState(t);
+  if (!state || state.game !== 'valorant' || !state.playoff) throw new Error('État playoff invalide.');
+  const playoff = de.amendResult(state.playoff, matchId, { a, b });
+  const phase = de.isComplete(playoff) ? 'done' : 'playoff';
+  await saveState(id, { ...state, playoff, phase });
+  refresh();
+}
+
 /** Forfait d'un match playoff : le côté indiqué l'emporte par forfait (13-0). */
 export async function concedePlayoffMatch(id: string, matchId: string, winner: 'a' | 'b') {
   const t = await getTournament(id);
@@ -177,6 +188,10 @@ export async function submitAmendSwissResult(id: string, matchId: string, formDa
 
 export async function submitPlayoffResult(id: string, matchId: string, formData: FormData) {
   await recordPlayoffResult(id, matchId, Number(formData.get('a')), Number(formData.get('b')));
+}
+
+export async function submitAmendPlayoffResult(id: string, matchId: string, formData: FormData) {
+  await amendPlayoffResult(id, matchId, Number(formData.get('a')), Number(formData.get('b')));
 }
 
 // ─── Gestion des équipes Valorant (CRUD) ─────────────────────────────────────

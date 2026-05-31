@@ -335,6 +335,87 @@ export function recordResult(
   return next;
 }
 
+/**
+ * Corrige le score d'un match DÉJÀ joué (le « crayon » du playoff, parité avec la
+ * suisse). Deux cas :
+ *   • vainqueur inchangé → on met juste à jour le score (toujours sûr) ;
+ *   • vainqueur changé → on re-propage (le nouveau gagnant avance, le nouveau
+ *     perdant tombe), mais SEULEMENT si le résultat n'a pas déjà avancé dans un
+ *     match joué — sinon on refuse (il faut corriger l'aval d'abord). Évite
+ *     d'invalider silencieusement une partie déjà jouée.
+ * Le changement de vainqueur en grande finale n'est pas géré ici (création/retrait
+ * du reset trop délicat) : seul le score y est corrigible.
+ */
+export function amendResult(state: DEState, matchId: string, score: { a: number; b: number }): DEState {
+  const next = deepCloneState(state);
+  const match = findMatch(next, matchId);
+  if (!match) throw new Error(`Match introuvable : ${matchId}`);
+  if (match.winner === null) throw new Error(`Le match ${matchId} n'a pas encore de résultat à corriger.`);
+  if (match.a.kind !== 'player' || match.b.kind !== 'player') {
+    throw new Error(`Le match ${matchId} n'a pas deux joueurs déterminés.`);
+  }
+
+  const aId = (match.a as { kind: 'player'; id: ParticipantId }).id;
+  const bId = (match.b as { kind: 'player'; id: ParticipantId }).id;
+  const aWon = score.a > score.b;
+  const newWinner = aWon ? aId : bId;
+  const newLoser = aWon ? bId : aId;
+
+  // Vainqueur inchangé : simple mise à jour du score.
+  if (newWinner === match.winner) {
+    match.score = { a: score.a, b: score.b };
+    return next;
+  }
+
+  if (match.bracket === 'GF') {
+    throw new Error('Changer le vainqueur en grande finale n’est pas supporté ici.');
+  }
+
+  const B = nextPow2(next.participants.length);
+  const k = Math.log2(B);
+  const routing = buildRouting(B, k);
+  const route = routing[match.id];
+
+  // Refuse si le résultat a déjà avancé dans un match joué (sinon on l'invaliderait).
+  for (const r of [route?.winnerTo, route?.loserTo]) {
+    if (!r) continue;
+    const target = findMatch(next, r.matchId);
+    if (target && (target.winner !== null || target.score !== null)) {
+      throw new Error(`Impossible : le résultat de ${matchId} a déjà avancé dans le match joué ${r.matchId}. Corrigez-le d'abord.`);
+    }
+  }
+
+  match.score = { a: score.a, b: score.b };
+  match.winner = newWinner;
+  applyRoute(next, route?.winnerTo ?? null, { kind: 'player', id: newWinner });
+  applyRoute(next, route?.loserTo ?? null, { kind: 'player', id: newLoser });
+  resolveCascade(next, routing);
+  return next;
+}
+
+/**
+ * Vrai si le match peut être corrigé en sécurité via `amendResult` : il est joué
+ * (vrai score) et son résultat n'a pas encore avancé dans un match joué. Sert à
+ * n'afficher le « crayon » que sur la frontière corrigeable (parité « manche
+ * courante » du suisse), sans risque d'invalider une partie déjà jouée.
+ */
+export function isAmendable(state: DEState, matchId: string): boolean {
+  const m = findMatch(state, matchId);
+  if (!m || m.winner === null || m.score === null) return false;
+  if (m.a.kind !== 'player' || m.b.kind !== 'player') return false;
+  if (m.bracket === 'GF') return true; // seul le score y est corrigible (géré par amendResult)
+  const B = nextPow2(state.participants.length);
+  const k = Math.log2(B);
+  const routing = buildRouting(B, k);
+  const route = routing[matchId];
+  for (const r of [route?.winnerTo, route?.loserTo]) {
+    if (!r) continue;
+    const target = findMatch(state, r.matchId);
+    if (target && (target.winner !== null || target.score !== null)) return false;
+  }
+  return true;
+}
+
 export function playableMatches(state: DEState): DEMatch[] {
   return state.matches.filter(
     (m) => m.a.kind === 'player' && m.b.kind === 'player' && m.score === null && m.winner === null,

@@ -9,6 +9,8 @@ import {
   champion,
   standings,
   slotName,
+  amendResult,
+  isAmendable,
   type DEState,
   type DEMatch,
 } from './double-elimination';
@@ -248,5 +250,59 @@ describe('slotName', () => {
     expect(slotName(s, m1.a)).toBe('P1'); // joueur résolu
     expect(slotName(s, { kind: 'bye' })).toBe('bye');
     expect(slotName(s, { kind: 'tbd' })).toBe('à venir'); // slot non encore déterminé
+  });
+});
+
+describe('amendResult (corriger un score playoff)', () => {
+  it('corrige le score sans changer le vainqueur (toujours sûr)', () => {
+    let s = createDoubleElim(mkParticipants(4));
+    s = recordResult(s, 'WB-R1-M1', { a: 13, b: 7 }); // seed 1 gagne
+    s = amendResult(s, 'WB-R1-M1', { a: 13, b: 10 });
+    const m = s.matches.find((x) => x.id === 'WB-R1-M1')!;
+    expect(m.score).toEqual({ a: 13, b: 10 });
+    expect(seedOf(s, m.winner!)).toBe(1);
+  });
+
+  it('change le vainqueur et re-propage si l’aval n’est pas joué', () => {
+    let s = createDoubleElim(mkParticipants(4));
+    s = recordResult(s, 'WB-R1-M1', { a: 13, b: 7 }); // seed 1 avance en WB-R2-M1.a
+    s = amendResult(s, 'WB-R1-M1', { a: 7, b: 13 }); // flip → seed 4 gagne
+    const m = s.matches.find((x) => x.id === 'WB-R1-M1')!;
+    expect(seedOf(s, m.winner!)).toBe(4);
+    const semi = s.matches.find((x) => x.id === 'WB-R2-M1')!;
+    expect(semi.a.kind).toBe('player');
+    expect(seedOf(s, (semi.a as { id: string }).id)).toBe(4);
+  });
+
+  it('refuse le changement de vainqueur si le résultat a déjà avancé dans un match joué', () => {
+    let s = createDoubleElim(mkParticipants(4));
+    s = recordResult(s, 'WB-R1-M1', { a: 13, b: 7 });
+    s = recordResult(s, 'WB-R1-M2', { a: 13, b: 7 });
+    s = recordResult(s, 'WB-R2-M1', { a: 13, b: 5 }); // finale WB jouée
+    expect(() => amendResult(s, 'WB-R1-M1', { a: 7, b: 13 })).toThrow();
+  });
+
+  it('un match sans résultat ne se corrige pas', () => {
+    const s = createDoubleElim(mkParticipants(4));
+    expect(() => amendResult(s, 'WB-R1-M1', { a: 13, b: 7 })).toThrow();
+  });
+});
+
+describe('isAmendable', () => {
+  it('vrai pour un match joué dont l’aval n’est pas joué', () => {
+    let s = createDoubleElim(mkParticipants(4));
+    s = recordResult(s, 'WB-R1-M1', { a: 13, b: 7 });
+    expect(isAmendable(s, 'WB-R1-M1')).toBe(true);
+  });
+  it('faux si l’aval est déjà joué', () => {
+    let s = createDoubleElim(mkParticipants(4));
+    s = recordResult(s, 'WB-R1-M1', { a: 13, b: 7 });
+    s = recordResult(s, 'WB-R1-M2', { a: 13, b: 7 });
+    s = recordResult(s, 'WB-R2-M1', { a: 13, b: 5 });
+    expect(isAmendable(s, 'WB-R1-M1')).toBe(false);
+  });
+  it('faux pour un match non joué', () => {
+    const s = createDoubleElim(mkParticipants(4));
+    expect(isAmendable(s, 'WB-R1-M1')).toBe(false);
   });
 });
