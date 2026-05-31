@@ -1,29 +1,47 @@
 // Image PNG du bracket (double élimination) pour Discord, générée depuis l'état
 // live via next/og (Satori). Se met à jour au fil des matchs. Identité LAN ÉTS /
-// Valorant (wordmark + accent rouge), forte hiérarchie, haute résolution.
+// Valorant : logos depuis public/ si présents (lan-ets.png / valorant.png), sinon
+// wordmark typographique. Connecteurs en arbre pour le winner bracket.
 // CSS limité à Satori (flexbox, bordures, positions) — pas de grid, pas d'emoji.
 
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { ImageResponse } from 'next/og';
 import type { DEState, DEMatch, DESlot } from '@/lib/formats/double-elimination';
 import { champion } from '@/lib/formats/double-elimination';
 
-const RED = '#ff4655'; // rouge Valorant
-const GOLD = '#f5b942'; // champion / gagnant
+const RED = '#ff4655';
+const GOLD = '#f5b942';
 const C = {
   bg: '#161719',
   panel: '#232427',
-  panelWin: '#2c2024', // gagnant : teinte rouge sombre
-  line: '#34363b',
+  panelWin: '#2c2024',
+  line: '#3a3d44',
   text: '#e3e5e8',
   mute: '#8b8e95',
   win: '#ffffff',
   seedBg: '#34363b',
 };
 
-const BOX_W = 375;
+const BOX_W = 360;
 const ROW_H = 44;
-const WB_H = 660;
-const LB_H = 300;
+const COL_GAP = 14;
+const CONN_W = 34;
+const TITLE_H = 30; // hauteur du libellé de colonne (aligne les connecteurs)
+const WB_H = 600;
+const LB_H = 280;
+
+/** Logo depuis public/<file> en data URI, ou null si absent (→ fallback wordmark). */
+function logoDataUri(file: string): string | null {
+  try {
+    const p = join(process.cwd(), 'public', file);
+    if (!existsSync(p)) return null;
+    const ext = /\.jpe?g$/i.test(file) ? 'jpeg' : 'png';
+    return `data:image/${ext};base64,${readFileSync(p).toString('base64')}`;
+  } catch {
+    return null; // décoration optionnelle : l'absence n'est pas une erreur
+  }
+}
 
 function teamRow(slot: DESlot, o: { names: Map<string, string>; seeds: Map<string, number>; isWinner: boolean; isChampion: boolean; score: number | null; top: boolean }) {
   const tbd = slot.kind === 'tbd';
@@ -75,10 +93,30 @@ function column(title: string, matches: DEMatch[], names: Map<string, string>, s
   return {
     type: 'div',
     props: {
-      style: { display: 'flex', flexDirection: 'column', marginRight: 46 },
+      style: { display: 'flex', flexDirection: 'column', marginRight: COL_GAP },
       children: [
-        { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 15, fontWeight: 700, letterSpacing: 2, marginBottom: 12, height: 18, textTransform: 'uppercase' }, children: title } },
+        { type: 'div', props: { style: { display: 'flex', height: TITLE_H, color: C.mute, fontSize: 15, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }, children: title } },
         { type: 'div', props: { style: { display: 'flex', flexDirection: 'column', justifyContent: 'space-around', height }, children: matches.map((m) => matchBox(m, names, seeds, champ)) } },
+      ],
+    },
+  };
+}
+
+/** Colonne de connecteurs « arbre » entre une colonne de `prevN` boîtes et la
+ *  suivante (prevN/2 boîtes). Chaque connecteur joint une paire → aligné par
+ *  space-around (même rythme géométrique que les colonnes). */
+function connectorColumn(prevN: number, height: number) {
+  const items = [];
+  for (let k = 0; k < Math.floor(prevN / 2); k++) {
+    items.push({ type: 'div', props: { style: { display: 'flex', width: CONN_W, height: height / prevN, borderTop: `2px solid ${C.line}`, borderBottom: `2px solid ${C.line}`, borderRight: `2px solid ${C.line}` }, children: '' } });
+  }
+  return {
+    type: 'div',
+    props: {
+      style: { display: 'flex', flexDirection: 'column', marginRight: COL_GAP },
+      children: [
+        { type: 'div', props: { style: { display: 'flex', height: TITLE_H }, children: '' } },
+        { type: 'div', props: { style: { display: 'flex', flexDirection: 'column', justifyContent: 'space-around', height }, children: items } },
       ],
     },
   };
@@ -88,7 +126,7 @@ function sectionLabel(text: string, color: string) {
   return {
     type: 'div',
     props: {
-      style: { display: 'flex', alignItems: 'center', marginBottom: 24, marginTop: 16 },
+      style: { display: 'flex', alignItems: 'center', marginBottom: 22, marginTop: 14 },
       children: [
         { type: 'div', props: { style: { display: 'flex', width: 6, height: 28, borderRadius: 3, background: color, marginRight: 14 }, children: '' } },
         { type: 'div', props: { style: { display: 'flex', color: C.text, fontSize: 25, fontWeight: 800, letterSpacing: 0.5 }, children: text } },
@@ -98,46 +136,43 @@ function sectionLabel(text: string, color: string) {
 }
 
 function header(champName: string | null) {
-  const left = {
+  const lanLogo = logoDataUri('lan-ets.png');
+  const valLogo = logoDataUri('valorant.png');
+
+  const leftChildren = [];
+  leftChildren.push(
+    lanLogo
+      ? { type: 'img', props: { src: lanLogo, style: { height: 78, marginRight: 22 } } }
+      : { type: 'div', props: { style: { display: 'flex', width: 10, height: 78, borderRadius: 4, background: RED, marginRight: 22 }, children: '' } },
+  );
+  leftChildren.push({
     type: 'div',
     props: {
-      style: { display: 'flex', alignItems: 'center' },
+      style: { display: 'flex', flexDirection: 'column' },
       children: [
-        { type: 'div', props: { style: { display: 'flex', width: 10, height: 78, borderRadius: 4, background: RED, marginRight: 24 }, children: '' } },
-        {
-          type: 'div',
-          props: {
-            style: { display: 'flex', flexDirection: 'column' },
-            children: [
-              {
-                type: 'div',
-                props: {
-                  style: { display: 'flex', alignItems: 'baseline' },
-                  children: [
-                    { type: 'div', props: { style: { display: 'flex', color: C.win, fontSize: 54, fontWeight: 800, letterSpacing: 1 }, children: 'LAN ÉTS' } },
-                    { type: 'div', props: { style: { display: 'flex', color: RED, fontSize: 54, fontWeight: 800, marginLeft: 16 }, children: '2026' } },
-                  ],
-                },
-              },
-              { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 22, fontWeight: 700, letterSpacing: 8, marginTop: 6 }, children: 'VALORANT · PLAYOFF' } },
-            ],
-          },
-        },
+        { type: 'div', props: { style: { display: 'flex', alignItems: 'baseline' }, children: [
+          { type: 'div', props: { style: { display: 'flex', color: C.win, fontSize: 54, fontWeight: 800, letterSpacing: 1 }, children: 'LAN ÉTS' } },
+          { type: 'div', props: { style: { display: 'flex', color: RED, fontSize: 54, fontWeight: 800, marginLeft: 16 }, children: '2026' } },
+        ] } },
+        { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 22, fontWeight: 700, letterSpacing: 8, marginTop: 6 }, children: 'VALORANT · PLAYOFF' } },
       ],
     },
-  };
+  });
+
   const right = champName
     ? { type: 'div', props: { style: { display: 'flex', alignItems: 'center', padding: '12px 22px', borderRadius: 10, background: '#2a2410', border: `2px solid ${GOLD}` }, children: [
         { type: 'div', props: { style: { display: 'flex', color: GOLD, fontSize: 16, fontWeight: 800, letterSpacing: 3, marginRight: 14 }, children: 'CHAMPION' } },
         { type: 'div', props: { style: { display: 'flex', color: C.win, fontSize: 24, fontWeight: 800 }, children: champName } },
       ] } }
-    : { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 19, fontWeight: 600 }, children: 'Double élimination · 2 défaites = éliminé' } };
+    : valLogo
+      ? { type: 'img', props: { src: valLogo, style: { height: 56 } } }
+      : { type: 'div', props: { style: { display: 'flex', color: C.mute, fontSize: 19, fontWeight: 600 }, children: 'Double élimination · 2 défaites = éliminé' } };
 
   return {
     type: 'div',
     props: {
-      style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${C.line}`, paddingBottom: 24, marginBottom: 8 },
-      children: [left, right],
+      style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `2px solid ${C.line}`, paddingBottom: 22, marginBottom: 8 },
+      children: [{ type: 'div', props: { style: { display: 'flex', alignItems: 'center' }, children: leftChildren } }, right],
     },
   };
 }
@@ -153,33 +188,37 @@ export function bracketImageResponse(state: DEState): ImageResponse {
   const wbMax = maxR('WB');
   const lbMax = maxR('LB');
 
-  const wbCols = [];
+  // Winner bracket avec connecteurs en arbre (les rondes WB forment un arbre binaire).
+  const wbRow = [];
   for (let r = 1; r <= wbMax; r++) {
     const t = r === wbMax ? 'Finale W' : r === wbMax - 1 ? 'Demies' : `Tour ${r}`;
-    wbCols.push(column(t, byBR('WB', r), names, seeds, champ, WB_H));
+    const matches = byBR('WB', r);
+    wbRow.push(column(t, matches, names, seeds, champ, WB_H));
+    if (r < wbMax && matches.length >= 2) wbRow.push(connectorColumn(matches.length, WB_H));
   }
   const gf = byBR('GF', 1);
-  if (gf.length) wbCols.push(column('Grande finale', gf, names, seeds, champ, WB_H));
+  if (gf.length) wbRow.push(column('Grande finale', gf, names, seeds, champ, WB_H));
 
-  const lbCols = [];
+  // Loser bracket : structure entrelacée (pas un arbre binaire) → colonnes simples.
+  const lbRow = [];
   for (let r = 1; r <= lbMax; r++) {
     const t = r === lbMax ? 'Finale L' : `Tour ${r}`;
-    lbCols.push(column(t, byBR('LB', r), names, seeds, champ, LB_H));
+    lbRow.push(column(t, byBR('LB', r), names, seeds, champ, LB_H));
   }
 
   const element = {
     type: 'div',
     props: {
-      style: { display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: C.bg, padding: 56, fontFamily: 'Geist, sans-serif' },
+      style: { display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: C.bg, padding: 48, fontFamily: 'Geist, sans-serif' },
       children: [
         header(champName),
         sectionLabel('Bracket gagnant · Winners', RED),
-        { type: 'div', props: { style: { display: 'flex' }, children: wbCols } },
+        { type: 'div', props: { style: { display: 'flex' }, children: wbRow } },
         sectionLabel('Bracket des perdants · Losers', GOLD),
-        { type: 'div', props: { style: { display: 'flex' }, children: lbCols } },
+        { type: 'div', props: { style: { display: 'flex' }, children: lbRow } },
       ],
     },
   };
 
-  return new ImageResponse(element as unknown as React.ReactElement, { width: 1840, height: 1360 });
+  return new ImageResponse(element as unknown as React.ReactElement, { width: 1700, height: 1300 });
 }
