@@ -1,20 +1,41 @@
 # Système de tournoi — LAN ÉTS 2026
 
-Application web légère, destinée aux **organisateurs**, pour gérer trois tournois
-lors du LAN ÉTS 2026 : **Valorant**, **GeoGuessr** et **TrackMania**. Les scores
+> ## 🏆 Archive — un souvenir
+>
+> Petit système de tournoi **_vibe-codé_ pour le plaisir**, en vue du **LAN ÉTS
+> 2026**. Il a fait le travail le jour J : le tournoi **Valorant** s'est bien
+> déroulé, les équipes étaient contentes, et **The GRID** est repartie championne.
+>
+> Ce dépôt est **archivé comme souvenir**, pas comme un produit. Tout a été pensé
+> *spécifiquement* pour le LAN ÉTS 2026 (formats, horaire, identité visuelle,
+> intégrations) — c'est rejouable depuis zéro (voir plus bas), mais ce n'est pas
+> un logiciel générique conçu pour vivre hors de ce contexte. Et c'est très bien
+> comme ça. 🙂
+>
+> ### 👉 [Voir les résultats du tournoi](docs/RESULTS.md) — 🥇 Champion : **The GRID**
+
+[![Bracket du playoff Valorant — LAN ÉTS 2026](docs/bracket-final.webp)](docs/RESULTS.md)
+
+---
+
+Application web légère, destinée aux **organisateurs**, pour gérer les tournois
+du LAN ÉTS 2026. Le code couvre **Valorant**, **GeoGuessr** et **TrackMania** ;
+en pratique, c'est le tournoi **Valorant** qui a réellement été joué. Les scores
 sont saisis manuellement par l'orga ; l'app sert aussi à afficher les brackets et
 classements sur un projecteur, et à générer des messages Discord copier/coller.
 
-> **But** : un outil basique mais réellement utile le jour de l'événement. Pas de
-> sur-ingénierie.
+> **But d'origine** : un outil basique mais réellement utile le jour de
+> l'événement. Pas de sur-ingénierie.
 
 ## État du projet
 
-Application **fonctionnelle de bout en bout** pour Valorant (suisse → playoff),
-avec GeoGuessr et TrackMania également jouables. Inclus : import du roster depuis
-un fichier `.xlsx`, gestion complète des équipes/rosters, saisie des scores, vue
-projecteur et panneau Discord. La couche logique pure est entièrement testée
-(112 tests, `tsc` strict ; `next build` comme garde-fou de l'UI).
+Application qui a tourné **de bout en bout** pour Valorant (suisse → playoff),
+avec GeoGuessr et TrackMania également jouables dans le code. Inclus : import du
+roster depuis un fichier `.xlsx`, gestion complète des équipes/rosters, saisie des
+scores, vue projecteur, image de bracket générée en direct, panneau Discord, et un
+**serveur MCP** (`mcp/server.ts`) qui a permis de piloter le tournoi via Claude. La
+couche logique pure est entièrement testée (`tsc` strict ; `next build` comme
+garde-fou de l'UI).
 
 ## Formats par jeu
 
@@ -106,8 +127,11 @@ npm run import chemin/vers/mon-fichier.xlsx
 
 Colonnes attendues (l'ordre et la casse importent peu) : `Team`, `Username`,
 `Email`, `Identifier`, `Rank`, `Seat`. L'import n'affiche **aucune donnée
-personnelle**, seulement des compteurs. Vous pourrez ensuite ajouter/modifier des
-équipes directement dans l'interface.
+personnelle**, seulement des compteurs.
+
+> **Cette étape est facultative.** Le tableur du roster n'est pas dans le dépôt
+> (données personnelles). Pour repartir de zéro sans fichier, sautez l'import et
+> **ajoutez vos équipes directement dans l'interface** une fois l'app lancée.
 
 ### 5. Lancer l'application
 
@@ -126,11 +150,21 @@ npm start
 
 Puis ouvrez **<http://localhost:3000>** dans votre navigateur.
 
+### 6. (Optionnel) Piloter le tournoi via Claude — MCP
+
+Le tournoi a en réalité été opéré en bonne partie **par dialogue avec Claude**,
+grâce à un serveur MCP qui expose les actions (démarrer la suisse, générer une
+ronde, saisir un score, lancer le playoff, etc.). Le serveur est déclaré dans
+`.mcp.json` et défini dans `mcp/server.ts` ; il lit/écrit la **même** base SQLite
+que l'application web. C'est facultatif — toute la gestion reste possible à la
+souris dans l'interface.
+
 ### En cas de besoin
 
 ```bash
-npm test          # vérifie que toute la logique fonctionne (112 tests)
+npm test          # vérifie que toute la logique fonctionne (197 tests)
 npm run db:push   # re-synchronise la base si le schéma a changé
+npm run reseed    # (Valorant) régénère le seeding suisse — AVANT tout résultat
 ```
 
 > Astuce : si un port est déjà utilisé, lancez par exemple `npm run dev -- -p 3001`
