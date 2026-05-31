@@ -13,5 +13,5 @@ export async function GET() {
   if (!state || state.phase === 'swiss' || !state.playoff) {
     return new Response('Playoff non démarré.', { status: 404 });
   }
-  return bracketImageResponse(state.playoff, t.name);
+  return bracketImageResponse(state.playoff);
 }

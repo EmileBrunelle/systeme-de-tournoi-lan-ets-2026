@@ -1,4 +1,4 @@
-import { Trophy, Play, Flag } from 'lucide-react';
+import { Trophy, Play, Flag, FileImage } from 'lucide-react';
 import * as swiss from '@/lib/formats/swiss';
 import * as de from '@/lib/formats/double-elimination';
 import { lanEtsValorantSchedule, saturdayEndTime, sleepGapMinutes } from '@/lib/schedule/lan-ets';
@@ -63,7 +63,18 @@ export default function ValorantView({
 
       {/* Sous le pli — consulté moins souvent */}
       <LanEtsSchedule />
-      <DiscordPanel blocks={discordBlocks(state, { now, rankById })} />
+      <DiscordPanel
+        blocks={discordBlocks(state, { now, rankById })}
+        headerAction={
+          state.phase !== 'swiss' && state.playoff ? (
+            <Button asChild variant="outline" size="sm">
+              <a href="/bracket.png" target="_blank" rel="noopener noreferrer">
+                <FileImage className="size-4" /> Image du bracket
+              </a>
+            </Button>
+          ) : undefined
+        }
+      />
       <DangerZone id={t.id} />
     </div>
   );
@@ -322,16 +333,8 @@ function PlayoffDashboard({ t, state }: { t: TournamentWithRoster; state: Valora
   return (
     <div className="grid items-start gap-6 lg:grid-cols-3">
       <Card className="lg:col-span-2">
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardHeader>
           <CardTitle>Matchs jouables — Double élimination</CardTitle>
-          <a
-            href="/bracket.png"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 text-sm font-medium text-primary hover:underline"
-          >
-            🖼️ Image du bracket
-          </a>
         </CardHeader>
         <CardContent className="space-y-1">
           {champ && (

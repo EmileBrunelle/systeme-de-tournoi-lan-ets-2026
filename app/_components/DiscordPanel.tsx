@@ -1,19 +1,25 @@
+import type { ReactNode } from 'react';
 import { MessageSquare } from 'lucide-react';
 import CopyButton from './CopyButton';
 import type { DiscordBlock } from '../_lib/discord-views';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
-export default function DiscordPanel({ blocks }: { blocks: DiscordBlock[] }) {
+export default function DiscordPanel({ blocks, headerAction }: { blocks: DiscordBlock[]; headerAction?: ReactNode }) {
   if (blocks.length === 0) return null;
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageSquare className="size-4 text-muted-foreground" /> Messages Discord
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Cliquez pour copier, puis collez dans Discord (markdown, découpé à 2000 caractères).
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1.5">
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="size-4 text-muted-foreground" /> Messages Discord
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Cliquez pour copier, puis collez dans Discord (markdown, découpé à 2000 caractères).
+            </p>
+          </div>
+          {headerAction}
+        </div>
       </CardHeader>
       <CardContent className="space-y-5">
         {blocks.map((block) => (
