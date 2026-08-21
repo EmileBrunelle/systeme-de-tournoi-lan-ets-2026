@@ -116,7 +116,7 @@ npm run db:push          # crée le fichier de base de données SQLite (prisma/d
 Placez le fichier `.xlsx` du roster à la racine du projet, puis :
 
 ```bash
-npm run import                       # lit Valorant_game_profiles_2026.xlsx par défaut
+npm run import   # lit Valorant_game_profiles_2026.xlsx par défaut
 # ou, si le fichier a un autre nom/emplacement :
 npm run import chemin/vers/mon-fichier.xlsx
 ```
