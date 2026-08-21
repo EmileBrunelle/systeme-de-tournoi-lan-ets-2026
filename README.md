@@ -18,11 +18,10 @@
 
 ---
 
-Application web légère, destinée aux **organisateurs**, pour gérer les tournois
-du LAN ÉTS 2026. Le code couvre **Valorant**, **GeoGuessr** et **TrackMania**,
-mais le système n'a servi qu'au tournoi **Valorant** le jour J. Les scores
-sont saisis manuellement par l'orga ; l'app sert aussi à afficher les brackets et
-classements sur un projecteur, et à générer des messages Discord copier/coller.
+Application web légère, destinée aux **organisateurs**, pour gérer le tournoi
+**Valorant** du LAN ÉTS 2026. Les scores sont saisis manuellement par l'orga ;
+l'app sert aussi à afficher les brackets et classements sur un projecteur, et à
+générer des messages Discord copier/coller.
 
 > **But d'origine** : un outil basique mais réellement utile le jour de
 > l'événement. Pas de sur-ingénierie.
@@ -30,21 +29,19 @@ classements sur un projecteur, et à générer des messages Discord copier/colle
 ## État du projet
 
 Application qui a tourné **de bout en bout** pour Valorant (suisse → playoff).
-GeoGuessr et TrackMania sont implémentés et testés dans le code, mais n'ont
-jamais été utilisés à l'événement. Inclus : import du
+Inclus : import du
 roster depuis un fichier `.xlsx`, gestion complète des équipes/rosters, saisie des
 scores, vue projecteur, image de bracket générée en direct, panneau Discord, et un
 **serveur MCP** (`mcp/server.ts`) qui a permis de piloter le tournoi via Claude. La
 couche logique pure est entièrement testée (`tsc` strict ; `next build` comme
 garde-fou de l'UI).
 
-## Formats par jeu
+## Format du tournoi
 
-| Jeu | Phase 1 | Phase 2 | Participants |
-|---|---|---|---|
-| **Valorant** — *utilisé au LAN* | Suisse « jusqu'à 3 V / 3 D » (anti-revanche, Buchholz, byes) | Playoff double élimination (top 8 configurable) | Équipes |
-| **GeoGuessr** — *code seulement* | — | Élimination simple **+ petite finale (3ᵉ place)** | Joueurs solo |
-| **TrackMania** — *code seulement* | **Time Attack** (classement par temps) | **Cup** : rondes à points + course finale (seedée par le Time Attack) | Joueurs solo |
+| Phase | Format |
+|---|---|
+| **Phase 1** | Suisse « jusqu'à 3 V / 3 D » (anti-revanche, Buchholz, byes) |
+| **Phase 2** | Playoff double élimination (top 8 configurable) |
 
 ## Architecture
 
@@ -56,25 +53,23 @@ ce qui les rend faciles à tester.
 lib/
 ├── domain/types.ts          Types partagés (Participant, Standing…)
 ├── formats/
-│   ├── swiss.ts             Phase suisse (Valorant phase 1)
-│   ├── double-elimination.ts Playoff double élimination (Valorant phase 2)
-│   ├── single-elimination.ts Élimination simple + 3ᵉ place (GeoGuessr)
-│   ├── time-attack.ts       Classement par temps (TrackMania phase 1)
-│   └── cup.ts               Rondes à points + finale (TrackMania phase 2)
+│   ├── swiss.ts             Phase suisse (phase 1)
+│   ├── double-elimination.ts Playoff double élimination (phase 2)
+│   └── …                    Autres moteurs de format, jamais utilisés à l'événement
 ├── discord/
 │   ├── split.ts             Découpe à la limite Discord (2000 car.)
 │   └── format.ts            Messages copier/coller (appariements, classement…)
 ├── schedule/estimate.ts     Estimation d'horaire (postes, pauses, jour suivant)
-└── runtime/runner.ts        Orchestration par jeu (enchaîne les moteurs)
+└── runtime/runner.ts        Orchestration du tournoi (enchaîne les moteurs)
 ```
 
 L'interface et la persistance s'appuient sur cette logique sans la dupliquer :
 
 ```
 app/
-├── page.tsx                 Accueil (les tournois)
+├── page.tsx                 Accueil (le tournoi)
 ├── t/[id]/                  Tableau de bord d'un tournoi, équipes, projecteur
-├── _components/             Vues par jeu, gestion d'équipes, panneau Discord
+├── _components/             Vues du tournoi, gestion d'équipes, panneau Discord
 └── _lib/                    Client Prisma, actions serveur, vues Discord
 prisma/schema.prisma         Tables (Tournament, Team, Member, Player) — SQLite local
 scripts/import.ts            Import du roster .xlsx (répare l'encodage, calcule le rang moyen)
@@ -116,7 +111,7 @@ cp .env.example .env     # crée le fichier de configuration (à faire une seule
 npm run db:push          # crée le fichier de base de données SQLite (prisma/dev.db)
 ```
 
-### 4. (Valorant) Importer la liste des équipes
+### 4. Importer la liste des équipes
 
 Placez le fichier `.xlsx` du roster à la racine du projet, puis :
 
@@ -165,7 +160,7 @@ souris dans l'interface.
 ```bash
 npm test          # vérifie que toute la logique fonctionne (197 tests)
 npm run db:push   # re-synchronise la base si le schéma a changé
-npm run reseed    # (Valorant) régénère le seeding suisse — AVANT tout résultat
+npm run reseed    # régénère le seeding suisse — AVANT tout résultat
 ```
 
 > Astuce : si un port est déjà utilisé, lancez par exemple `npm run dev -- -p 3001`
@@ -178,8 +173,8 @@ joueurs, la base de données et les courriels **restent locaux** sur la machine 
 l'organisateur. Le `.gitignore` exclut les tableurs (`*.xlsx`, `*.xls`, `*.csv`),
 les bases de données (`*.db`, `*.sqlite*`), les fichiers de lock et `.env`.
 
-Chaque organisateur gère un seul jeu, avec sa propre copie et sa propre base
-SQLite locale — aucune synchronisation n'est requise.
+Tout tourne sur la machine de l'organisateur, avec une base SQLite locale —
+aucune synchronisation n'est requise.
 
 ## Licence
 
