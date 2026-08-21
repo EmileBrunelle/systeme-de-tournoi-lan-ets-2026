@@ -19,8 +19,8 @@
 ---
 
 Application web légère, destinée aux **organisateurs**, pour gérer les tournois
-du LAN ÉTS 2026. Le code couvre **Valorant**, **GeoGuessr** et **TrackMania** ;
-en pratique, c'est le tournoi **Valorant** qui a réellement été joué. Les scores
+du LAN ÉTS 2026. Le code couvre **Valorant**, **GeoGuessr** et **TrackMania**,
+mais le système n'a servi qu'au tournoi **Valorant** le jour J. Les scores
 sont saisis manuellement par l'orga ; l'app sert aussi à afficher les brackets et
 classements sur un projecteur, et à générer des messages Discord copier/coller.
 
@@ -29,8 +29,9 @@ classements sur un projecteur, et à générer des messages Discord copier/colle
 
 ## État du projet
 
-Application qui a tourné **de bout en bout** pour Valorant (suisse → playoff),
-avec GeoGuessr et TrackMania également jouables dans le code. Inclus : import du
+Application qui a tourné **de bout en bout** pour Valorant (suisse → playoff).
+GeoGuessr et TrackMania sont implémentés et testés dans le code, mais n'ont
+jamais été utilisés à l'événement. Inclus : import du
 roster depuis un fichier `.xlsx`, gestion complète des équipes/rosters, saisie des
 scores, vue projecteur, image de bracket générée en direct, panneau Discord, et un
 **serveur MCP** (`mcp/server.ts`) qui a permis de piloter le tournoi via Claude. La
@@ -41,9 +42,9 @@ garde-fou de l'UI).
 
 | Jeu | Phase 1 | Phase 2 | Participants |
 |---|---|---|---|
-| **Valorant** | Suisse « jusqu'à 3 V / 3 D » (anti-revanche, Buchholz, byes) | Playoff double élimination (top 8 configurable) | Équipes |
-| **GeoGuessr** | — | Élimination simple **+ petite finale (3ᵉ place)** | Joueurs solo |
-| **TrackMania** | **Time Attack** (classement par temps) | **Cup** : rondes à points + course finale (seedée par le Time Attack) | Joueurs solo |
+| **Valorant** — *utilisé au LAN* | Suisse « jusqu'à 3 V / 3 D » (anti-revanche, Buchholz, byes) | Playoff double élimination (top 8 configurable) | Équipes |
+| **GeoGuessr** — *code seulement* | — | Élimination simple **+ petite finale (3ᵉ place)** | Joueurs solo |
+| **TrackMania** — *code seulement* | **Time Attack** (classement par temps) | **Cup** : rondes à points + course finale (seedée par le Time Attack) | Joueurs solo |
 
 ## Architecture
 
